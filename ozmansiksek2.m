@@ -307,3 +307,49 @@ reduce:=function(X,Xp,D);
 	Dp:=Divisor(Xp,Jp);
 	return Dp;
 end function;
+
+//The below function was written by Josha Box
+MapFromQuotient:=function(N,ws,n)
+tf,m:=IsSquare(Integers()!(N/n));
+assert tf;
+X0N:=SmallModularCurve(N);
+X0n:=SmallModularCurve(n);
+ws:=[AtkinLehnerInvolution(X0N,N,w) : w in ws];
+Y,prY:=CurveQuotient(AutomorphismGroup(X0N,ws));
+prec:=200;
+L<q>:=LaurentSeriesRing(Rationals(),prec);
+qexps:=qExpansionsOfGenerators(N,L,200); //These are the q-expansions of the three cuspforms defining the model for X_0(45) computed by the SMC package.
+fn:=qExpansionsOfGenerators(n,L,200)[1]; //This is the q-expansion of the Hauptmodul function on X_0(n) with respect to which the SMC package computes maps to and from X_0(5). Starts as q^-1+... 
+fnm:=Evaluate(fn,q^m); //This is a function on Y.
+eqns:=DefiningEquations(prY);
+eqnsev:=[Evaluate(eqn,qexps) : eqn in eqns];
+fns:=[eqnsev[i]/eqnsev[#eqns] : i in [1..#eqns-1]]; //The q-exps of modular functions generating
+//the function field of Y. To compute the map we simply need to write fnd as
+//a rational function in the elements of fns. We can do this by linear algebra on q-exps.
+tf:=false;
+d:=0;
+while tf eq false do
+d:=d+1;
+R:=PolynomialRing(Rationals(),#eqns-1);
+mons:=&cat[Setseq(MonomialsOfDegree(R,e)) : e in [0..d]];
+k:=prec-100;
+Zk:=FreeAbelianGroup(k);
+Zm:=VectorSpace(Rationals(),(2*#mons));
+Zk:=VectorSpace(Rationals(),k+101);
+h:=hom<Zm -> Zk | [[Coefficient(Evaluate(mons[i],fns)*fnm,j) : j in [-100..k]] : i in [1..#mons]] cat [[Coefficient(Evaluate(-mons[i],fns),j) : j in [-100..k]] : i in [1..#mons]]>;
+K:=Kernel(h);
+for v in Basis(K) do
+if not &+[Eltseq(v)[j] : j in [1..#mons]] eq 0 and not &+[Eltseq(v)[j+#mons] : j in [1..#mons]] eq 0   then
+vseq:=Eltseq(v);
+tf:=true;
+end if; 
+end for;
+end while;
+F<[xx]>:=FunctionField(Y);
+theeqn:=Evaluate(&+[vseq[i+#mons]*mons[i] : i in [1..#mons]],xx)/Evaluate(&+[vseq[i]*mons[i] : i in [1..#mons]],xx);
+thefn:=ProjectiveFunction(theeqn);
+themap:=map<Y->X0n | [Numerator(thefn),Denominator(thefn)]>; //This is the one.
+projNn:=ProjectionMap(X0N,N,X0n,n,m); //Map X0N->X0n that is multiplication by m on complex upper half plane
+assert projNn eq prY*themap; //This proves that we have found the right map. No need to check if we computed q-expansions to suff high order.
+return themap;
+end function;

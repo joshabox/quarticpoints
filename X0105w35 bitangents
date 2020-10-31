@@ -1,23 +1,28 @@
 X:=ModularCurveQuotient(105,[35]);
 assert Genus(X) eq 3;
+assert #DefiningEquations(X) eq 1;
 eqn:=DefiningEquations(X)[1];
-assert Degree(eqn) eq 4;
+assert Degree(eqn) eq 4; //X is indeed given as a plane quartic
+
+//We now compute the bitangents. The EliminationIdeal method from Ozman and Siskek is too computationally expensive here.
+//Instead, we first choose a chart (y=1), and we substitute a generic line z+beta*x+gamma=0. 
+//The values of beta,gamma for which the result is the square of a quadratic polynomial, correspond to the bitangents.
+//One property of the square of a quadratic polynomial is that the GCD with its derivative has degree 2.
+//So the Euclidean algorithm is a cheap way of computing the bitangents.
+
 P<beta,gam>:=PolynomialRing(Rationals(),2);
 L:=FieldOfFractions(P);
- R<x>:=PolynomialRing(L,1);
- f:=R!Evaluate(eqn,[x,1,-beta*x-gam]);  
- f1:=f;
- f2:=Derivative(f,x);
- f3:=f-x*LeadingCoefficient(f)*f2/LeadingCoefficient(f2);
- f4:=f2-LeadingCoefficient(f2)*f3/LeadingCoefficient(f3);
- f5:=f3-x*LeadingCoefficient(f3)*f4/LeadingCoefficient(f4);
- f6:=f4-LeadingCoefficient(f4)*f5/LeadingCoefficient(f5);
- cfs5:=Coefficients(f5);
- cfs6:=Coefficients(f6);
- nums5:=[Numerator(c) : c in cfs5];
- nums6:=[Numerator(c) : c in cfs6];
+R<x>:=PolynomialRing(L,1);
+f:=R!Evaluate(eqn,[x,1,-beta*x-gam]);  
+f1:=f;
+f2:=Derivative(f,x);
+f3:=f-x*LeadingCoefficient(f)*f2/LeadingCoefficient(f2);
+f4:=f2-LeadingCoefficient(f2)*f3/LeadingCoefficient(f3);
+f5:=f3-x*LeadingCoefficient(f3)*f4/LeadingCoefficient(f4); //This polynomial has degree 2, and must be the GCD.
+f6:=f4-LeadingCoefficient(f4)*f5/LeadingCoefficient(f5); //To get f5=GCD(f,f2), need f6=0.
+cfs6:=Coefficients(f6);
+nums6:=[Numerator(c) : c in cfs6];
 A<u,v>:=AffineSpace(Rationals(),2);
-XX5:=Scheme(A,nums5);
 XX6:=Scheme(A,nums6);
 assert Dimension(XX6) eq 0;
 QQ<t>:=PolynomialRing(Rationals());
@@ -28,13 +33,14 @@ K:=Compositum(K5,Km3);
 K:=Compositum(K,Km7); // L = Q (sqrt(5), sqrt(-3), sqrt(-7))
 pts6:=RationalPoints(XX6,K);
 
+//We check which of the solutions actually correspond to bitangents.
 pts:=[];
 cfs,mons:=CoefficientsAndMonomials(f);
 for P in pts6 do
     PP<x>:=PolynomialRing(K);
     ff:=&+[Evaluate(cfs[i],Eltseq(P))*Evaluate(mons[i],[x]) : i in [1..#mons]];  
     ff:=ff/LeadingCoefficient(ff);
-    if IsSquare(ff) then Append(~pts,P);
+    if IsSquare(ff) then Append(~pts,P); 
     end if;
 end for;
 assert #pts eq 27;
@@ -42,6 +48,7 @@ assert #pts eq 27;
 g:=Evaluate(eqn,[1,1,x]); //This is the one.
 assert IsSquare(g/LeadingCoefficient(g)); 
 
+//We turn the pairs (beta,gamma) into actual bitangent lines.
 XK:=ChangeRing(X,K);
 AmbXK<xx,yy,zz>:=CoordinateRing(AmbientSpace(XK));
 L:={};
@@ -50,9 +57,11 @@ for pt in pts do
 	beta,gam:=Explode(E);
 	L:=L join {ideal<AmbXK | beta*xx+gam*yy+zz>};
 end for;
-L:=L join {ideal<AmbXK | xx-yy>};
+L:=L join {ideal<AmbXK | xx-yy>}; //The extra bitangent corr to g
 L:=SetToSequence(L);
 assert #L eq 28;
+
+//The code below is the code of Ozman and Siksek for computing the representation Gal(Qbar/Q) --> J[2] using the bitangents.
 
 LD:=[ &+[(d[2] div 2)*d[1] : d in Decomposition(Divisor(XK,l))] : l in L];
 w:=CanonicalDivisor(XK);
@@ -161,6 +170,7 @@ V2:=Eigenspace(mat2,F!1);
 V3:=Eigenspace(mat3,F!1);
 
 assert [Dimension(V) : V in [V1,V2,V3]] eq [4,4,4];
-assert Dimension((V1 meet V2) meet V3) eq 2;
+assert Dimension((V1 meet V2) meet V3) eq 2; 
+//This means that J(Q)[2] is a 2-dimensional F_2-vector space.
 
 

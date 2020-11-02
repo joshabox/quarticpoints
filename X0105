@@ -1,419 +1,86 @@
-reduce:=function(X,Xp,D);
-        if Type(D) eq DivCrvElt then
-                decomp:=Decomposition(D);
-                return &+[ pr[2]*$$(X,Xp,pr[1]) : pr in decomp]; // Reduce the problem to reducing places.
-        end if;
-        assert Type(D) eq PlcCrvElt;
-        if  Degree(D) eq 1 then
-                P:=D;
-                R<[x]>:=CoordinateRing(AmbientSpace(X));
-                m:=Rank(R);
-                KX:=FunctionField(X);
-                inds:=[i : i in [1..m] | &and[Valuation(KX!(x[j]/x[i]),P) ge 0 : j in [1..m]]];
-                assert #inds ne 0;
-                i:=inds[1];
-                PP:=[Evaluate(KX!(x[j]/x[i]),P) : j in [1..m]];
-                denom:=LCM([Denominator(d) : d in PP]);
-                PP:=[Integers()!(denom*d) : d in PP];
-                g:=GCD(PP);
-                PP:=[d div g : d in PP];
-                Fp:=BaseRing(Xp);
-                PP:=Xp![Fp!d : d in PP];
-                return Place(PP);
-        end if;
-        I:=Ideal(D);
-        Fp:=BaseRing(Xp);
-        p:=Characteristic(Fp);
-        B:=Basis(I) cat DefiningEquations(X);
-        m:=Rank(CoordinateRing(X));
-        assert Rank(CoordinateRing(Xp)) eq m;
-        R:=PolynomialRing(Integers(),m);
-        BR:=[];
-        for f in B do
-                g:=f*p^-(Minimum([Valuation(c,p) : c in Coefficients(f)]));
-                g:=g*LCM([Denominator(c) : c in Coefficients(g)]);
-                Append(~BR,g);
-        end for;
-        J:=ideal<R | BR>;
-        J:=Saturation(J,R!p);
-        BR:=Basis(J);
-        Rp:=CoordinateRing(AmbientSpace(Xp));
-        assert Rank(Rp) eq m;
-        BRp:=[Evaluate(f,[Rp.i : i in [1..m]]) : f in BR];
-        Jp:=ideal<Rp| BRp>;
-        Dp:=Divisor(Xp,Jp);
-        return Dp;
-end function;
+load "ozmansiksek2.m";
 
-ModCrvQuot:=function(N,wlist,remwlist)
-C:=CuspForms(N);
-ws:=[AtkinLehnerOperator(C,n) : n in wlist];
-remws:=[AtkinLehnerOperator(C,n) : n in remwlist];
-NN:=&meet[Nullspace(Matrix(w-1)) : w in ws];
-dim:=Dimension(NN);
-seqs:=[[Coordinates(NN,Basis(NN)[i]*Matrix(w)) : i in [1..dim]] : w in remws];
-BB:=[&+[(Integers()!(2*Eltseq(Basis(NN)[i])[j]))*C.j : j in [1..Dimension(C)]] : i in [1..dim]];
-prec:=500;
-L<q>:=LaurentSeriesRing(Rationals(),prec);
-R<[x]>:=PolynomialRing(Rationals(),dim);
-Bexp:=[L!qExpansion(BB[i],prec) : i in [1..dim]];
-eqns:=[R | ];
-	d:=1;
-	tf:=false;
-	while tf eq false do
-		d:=d+1;
-		mons:=MonomialsOfDegree(R,d);
-		monsq:=[Evaluate(mon,Bexp) : mon in mons];
-		V:=VectorSpace(Rationals(),#mons);
-		W:=VectorSpace(Rationals(),prec-10);
-		h:=hom<V->W | [W![Coefficient(monsq[i],j) : j in [1..(prec-10)]] : i in [1..#mons]]>;
-		K:=Kernel(h);
-		eqns:=eqns cat [ &+[Eltseq(V!k)[j]*mons[j] : j in [1..#mons] ] : k in Basis(K)  ];
-        I:=Radical(ideal<R | eqns>);
-		X:=Scheme(ProjectiveSpace(R),I);
-		if Dimension(X) eq 1 then
-			if IsSingular(X) eq false then
-				X:=Curve(ProjectiveSpace(R),eqns);
-				if Genus(X) eq dim then
-					tf:=true;
-				end if;
-			end if;
-		end if;
-	end while;
-	eqns:=GroebnerBasis(ideal<R | eqns>); // Simplifying the equations.
-	tf:=true;
-	repeat
-		t:=#eqns;
-		tf:=(eqns[t] in ideal<R | eqns[1..(t-1)]>);
-		if tf then 
-			Exclude(~eqns,eqns[t]);
-		end if;
-	until tf eq false;
-	t:=0;
-	repeat
-		t:=t+1;
-		tf:=(eqns[t] in ideal<R | Exclude(eqns,eqns[t])>);	
-		if tf then
-			Exclude(~eqns,eqns[t]);
-			t:=0;
-		end if;
-	until tf eq false and t eq #eqns;
-	X:=Curve(ProjectiveSpace(R),eqns); // Our model for X_0(N) discovered via the canonical embedding.
-	assert Genus(X) eq dim;
-	assert IsSingular(X) eq false;
-    indexGam:=N*&*[Rationals() | 1+1/p : p in PrimeDivisors(N)];	
-	indexGam:=Integers()!indexGam; // Index of Gamma_0(N) in SL_2(Z)
-	for eqn in eqns do
-		eqnScaled:=LCM([Denominator(c) : c in Coefficients(eqn)])*eqn;
-		wt:=2*Degree(eqn); // Weight of eqn as a cuspform.
-		hecke:=Ceiling(indexGam*wt/12);  // Hecke=Sturm bound.
-										// See Stein's book, Thm 9.18.
-		Bexp1:=[qExpansion(BB[i],hecke+10) : i in [1..dim]]; // q-expansions
-                        // of basis for S 
-                        // up to precision hecke+10.
-		assert Valuation(Evaluate(eqnScaled,Bexp1)) gt hecke+1;
-	end for; // We have now checked the correctness of the equations for X. 
-seqlist:=[[&+[seq[i][j]*x[j] : j in [1..dim]] : i in [1..dim]] : seq in seqs];
-wmaplist:=[iso<X->X | seq,seq> : seq in seqlist];
-return X,wmaplist;
-end function;
+X,wmaps:=ModCrvQuot(105,[5],[3,7]); //This is X_0(105)/w_5
+w3map:=wmaps[1];
+w7map:=wmaps[2];
 
-
+//We now compute X_0(105) as a double cover of X_0(105)/w5.
 C:=CuspForms(105);
 assert Dimension(C) eq 13;
 w5:=AtkinLehnerOperator(C,5);
+remws:=[AtkinLehnerOperator(C,n) : n in [5,105]];
 N5:=Nullspace(Matrix(w5-1));
-w7:=AtkinLehnerOperator(C,7);
-w3:=AtkinLehnerOperator(C,3);
+N5c:=Nullspace(Matrix(w5+1));
+seqs105:=[[Coordinates(N5c,Basis(N5c)[i]*Matrix(w)) cat [0 : j in [1..Dimension(N5)]]: i in [1..Dimension(N5c)]] cat [[0 : j in [1..Dimension(N5c)]] cat Coordinates(N5,Basis(N5)[i]*Matrix(w)): i in [1..Dimension(N5)]] : w in remws];
+//seqs defines the matrices for w5 and w105 on this model for X_0(105). The latter will be useful later on.
 assert Dimension(N5) eq 5;
-seq7:=[Coordinates(N5,Basis(N5)[i]*Matrix(w7)) : i in [1..5]];
-seq3:=[Coordinates(N5,Basis(N5)[i]*Matrix(w3)) : i in [1..5]];
 B5:=[&+[(Integers()!(2*Eltseq(Basis(N5)[i])[j]))*C.j : j in [1..Dimension(C)]] : i in [1..Dimension(N5)]];
-dim:=5;
+B5c:=[&+[(Integers()!(2*Eltseq(Basis(N5c)[i])[j]))*C.j : j in [1..Dimension(C)]] : i in [1..Dimension(N5c)]];
+dim:=13;
 prec:=500;
 N:=105;
 L<q>:=LaurentSeriesRing(Rationals(),prec);
 R<[x]>:=PolynomialRing(Rationals(),dim);
-Bexp:=[L!qExpansion(B5[i],prec) : i in [1..dim]];
+Bexp:=[L!qExpansion((B5c cat B5)[i],prec) : i in [1..dim]]; //We take a basis of cusp forms containing the cusp forms used to create the canonical model for X_0(105)/w5
 
 eqns:=[R | ];
-	d:=1;
-	tf:=false;
-	while tf eq false do
-		d:=d+1;
-		mons:=MonomialsOfDegree(R,d);
-		monsq:=[Evaluate(mon,Bexp) : mon in mons];
-		V:=VectorSpace(Rationals(),#mons);
-		W:=VectorSpace(Rationals(),prec-10);
-		h:=hom<V->W | [W![Coefficient(monsq[i],j) : j in [1..(prec-10)]] : i in [1..#mons]]>;
-		K:=Kernel(h);
-		eqns:=eqns cat [ &+[Eltseq(V!k)[j]*mons[j] : j in [1..#mons] ] : k in Basis(K)  ];
+d:=1;
+tf:=false;
+while tf eq false do
+	d:=d+1;
+	mons:=MonomialsOfDegree(R,d);
+	monsq:=[Evaluate(mon,Bexp) : mon in mons];
+	V:=VectorSpace(Rationals(),#mons);
+	W:=VectorSpace(Rationals(),prec-10);
+	h:=hom<V->W | [W![Coefficient(monsq[i],j) : j in [1..(prec-10)]] : i in [1..#mons]]>;
+	K:=Kernel(h);
+	eqns:=eqns cat [ &+[Eltseq(V!k)[j]*mons[j] : j in [1..#mons] ] : k in Basis(K)  ];
         I:=Radical(ideal<R | eqns>);
-		X:=Scheme(ProjectiveSpace(R),I);
-		if Dimension(X) eq 1 then
-			if IsSingular(X) eq false then
-				X:=Curve(ProjectiveSpace(R),eqns);
-				if Genus(X) eq dim then
-					tf:=true;
-				end if;
+	X105:=Scheme(ProjectiveSpace(R),I);
+	if Dimension(X105) eq 1 then
+			X105:=Curve(ProjectiveSpace(R),eqns);
+			if Genus(X105) eq dim then
+				tf:=true;
 			end if;
-		end if;
-	end while;
-	eqns:=GroebnerBasis(ideal<R | eqns>); // Simplifying the equations.
-	tf:=true;
-	repeat
-		t:=#eqns;
-		tf:=(eqns[t] in ideal<R | eqns[1..(t-1)]>);
-		if tf then 
-			Exclude(~eqns,eqns[t]);
-		end if;
-	until tf eq false;
-	t:=0;
-	repeat
-		t:=t+1;
-		tf:=(eqns[t] in ideal<R | Exclude(eqns,eqns[t])>);	
-		if tf then
-			Exclude(~eqns,eqns[t]);
-			t:=0;
-		end if;
-	until tf eq false and t eq #eqns;
-	X:=Curve(ProjectiveSpace(R),eqns); // Our model for X_0(N) discovered via the canonical embedding.
-	assert Genus(X) eq dim;
-	assert IsSingular(X) eq false;
-    indexGam:=N*&*[Rationals() | 1+1/p : p in PrimeDivisors(N)];	
-	indexGam:=Integers()!indexGam; // Index of Gamma_0(N) in SL_2(Z)
-	for eqn in eqns do
-		eqnScaled:=LCM([Denominator(c) : c in Coefficients(eqn)])*eqn;
-		wt:=2*Degree(eqn); // Weight of eqn as a cuspform.
-		hecke:=Ceiling(indexGam*wt/12);  // Hecke=Sturm bound.
-										// See Stein's book, Thm 9.18.
-		Bexp1:=[qExpansion(B5[i],hecke+10) : i in [1..dim]]; // q-expansions
-                        // of basis for S 
-                        // up to precision hecke+10.
-		assert Valuation(Evaluate(eqnScaled,Bexp1)) gt hecke+1;
-	end for; // We have now checked the correctness of the equations for X.   
-seq7:=[&+[seq7[i][j]*x[j] : j in [1..dim]] : i in [1..dim]];
-seq3:=[&+[seq3[i][j]*x[j] : j in [1..dim]] : i in [1..dim]];
-w7map:=iso<X->X | seq7,seq7>;
-w3map:=iso<X->X | seq3,seq3>;
-ptsX:=PointSearch(X,1000);
-divs:=[Place(ptsX[i])-Place(ptsX[1]) : i in [2,3,4]];
-k:=#divs;
-Zk:=FreeAbelianGroup(k);
-p:=11;
-Xp:=ChangeRing(X,GF(p));
-	assert IsSingular(Xp) eq false; // Now we know that
-	// J_X(Q)-->J_X(\F_p) is injective (we're assuming rank 0).
-	C,phi,psi:=ClassGroup(Xp);
-	Z:=FreeAbelianGroup(1);
-	degr:=hom<C->Z | [ Degree(phi(a))*Z.1 : a in OrderedGenerators(C)]>;
-JFp:=Kernel(degr); // This is isomorphic to J_X(\F_p).
-divsp:=[JFp!psi(reduce(X,Xp,1*Place(ptsX[i]))-reduce(X,Xp,1*Place(ptsX[1]))) : i in [2,3,4]]; 
-pi:=hom<Zk->JFp | divsp>;
-C,pi1:=quo<Zk | Kernel(pi)>;
+	end if;
+end while;
+//X0105 is a canonical model for X_0(105)
+f:=9*x[9]^2 - 6*x[9]*x[10] + x[10]^2 + 6*x[10]*x[11] + 21*x[10]*x[12] - 
+    12*x[10]*x[13] - 17*x[11]^2 + 19*x[11]*x[12] + 18*x[11]*x[13] + 7*x[12]^2 - 
+    18*x[12]*x[13] + 27*x[13]^2;
+g:=3*x[1] - x[2] + x[4] + x[5] + x[6] + 7*x[7] - x[8];
+assert g^2-f in Ideal(X105); //So f is a square in X_0(105). As f is a polynomial in x[9],..,x[13], it is by construction in the image of the coord ring of X_0(105)/w_5
 
-/*primes:=[11,13,17,29];
-pos:=[x : x in C];
-for p in primes do
-Xp:=ChangeRing(X,GF(p));
-	assert IsSingular(Xp) eq false; // Now we know that
-	// J_X(Q)-->J_X(\F_p) is injective (we're assuming rank 0).
-	CG,phi,psi:=ClassGroup(Xp);
-	Z:=FreeAbelianGroup(1);
-	degr:=hom<CG->Z | [ Degree(phi(a))*Z.1 : a in OrderedGenerators(CG)]>;
-JFp:=Kernel(degr); // This is isomorphic to J_X(\F_p).
-divsp:=[JFp!psi(reduce(X,Xp,1*Place(ptsX[i]))-reduce(X,Xp,1*Place(ptsX[1]))) : i in [2,3,4]]; 
-pi:=hom<Zk->JFp | divsp>;
-h:=hom<C -> JFp | [pi(C.i@@pi1) : i in [1..#Generators(C)]]>;
-m2:=hom<JFp -> JFp | [2*JFp.i : i in [1..#Generators(JFp)]]>;
-twotors:=[x : x in Kernel(m2) | not x in Image(h)];
-poss:=pos;
-    for D in poss do
-         if &and[Dimension(RiemannRochSpace(phi(h(D)+x)+4*reduce(X,Xp,1*Place(ptsX[1])))) eq 0 : x in twotors] then 
-         Exclude(~pos,D);
-         end if;
-    end for;
-#pos;
-end for;
-assert #pos eq 24;
+CR<x1,x2,x3,x4,x5,z>:=PolynomialRing(Rationals(),6);
+fff:=Evaluate(f,[0,0,0,0,0,0,0,0,x1,x2,x3,x4,x5]);
+defsX:=[Evaluate(eqn,[x1,x2,x3,x4,x5]) : eqn in DefiningEquations(X)];
+XX105:=Curve(Scheme(ProjectiveSpace(CR),[z^2-fff] cat defsX));
+assert Genus(XX105) eq 13;
+pi:=map<XX105 -> X | [x1,x2,x3,x4,x5]>; //This is the map X_0(105) --> X_0(105)/w_5.
 
-m2:=hom<C->C | [2*C.i : i in [1..#Generators(C)]]>;
-S:={2*x : x in pos};*/
-
-
+//We create the curves denoted in the paper by E_7, E_21 and C
 CC1,mm1:=CurveQuotient(AutomorphismGroup(X,[w7map]));
 CC2,mm2:=CurveQuotient(AutomorphismGroup(X,[w3map*w7map]));
 mmff1:=(FunctionField(X)!(DefiningEquations(mm1)[1]/DefiningEquations(mm1)[2]));
 mmff2:=(FunctionField(X)!(DefiningEquations(mm2)[1]/DefiningEquations(mm2)[2]));
-
-
-
 CC,mm:=CurveQuotient(AutomorphismGroup(X,[w3map]));
 assert Genus(CC) eq 3;
-mmff:=(FunctionField(X)!(DefiningEquations(mm)[1]/DefiningEquations(mm)[2]));
+ptsX:=PointSearch(X,100);
+E7,mE1:=EllipticCurve(CC1,mm1(ptsX[1]));  
+prE7:=mm1*mE1;
+E21,mE2:=EllipticCurve(CC2,mm2(ptsX[1]));
+prE21:=mm2*mE2;
 
-
-
-/*for p in [11,13,17,19,23,29] do
-assert p ge 3;
-	Xp:=ChangeRing(X,GF(p));
-	assert IsSingular(Xp) eq false; // Now we know that
-	// J_X(Q)-->J_X(\F_p) is injective (we're assuming rank 0).
-	C,phi,psi:=ClassGroup(Xp);
-	Z:=FreeAbelianGroup(1);
-	degr:=hom<C->Z | [ Degree(phi(a))*Z.1 : a in OrderedGenerators(C)]>;
-	A:=Kernel(degr); // This is isomorphic to J_X(\F_p).
-    p,A;
-end for;*/
-
-searchDiv2:=function(X,bd,tf);
-	g:=Genus(X);
-	//
-	// First we find degree 1 points
-	pts:=PointSearch(X , 1000);
-	pls1:={Place(P) : P in pts};
-	pls2:={};
-	plsbig:={};
-	R:=CoordinateRing(AmbientSpace(X));
-	n:=Rank(R);
-	// Next we intersect X with hyperplanes with coefficients bounded by bd
-	// and see what divisors we obtain.
-	C:=CartesianPower([-bd..bd],n);
-	ctr:=0;
-	for a in C do
-		ctr:=ctr+1;
-        if ctr mod 1000 eq 0 then ctr; end if;
-		//print #C,ctr,#pls1, #pls2,#plsbig;
-		b:=[a[i] : i in [1..n]];
-		if &or[b[i] ne 0 : i in [1..n]] then
-			if GCD(b) eq 1 and b[1] ge 0 then
-				f:=&+[b[i]*R.i : i in [1..n]];
-				D:=Divisor(X,ideal<R | f>);
-				decomp:=Decomposition(D);
-				for pr in decomp do
-					P:=pr[1];
-					if Degree(P) eq 1 then
-						pls1:=pls1 join {P};
-					else
-						if Degree(P) eq 2 then
-							pls2:=pls2 join {P};
-						else
-							if Degree(P) le g then
-								plsbig:=plsbig join {P};
-							end if;
-						end if;
-					end if;
-				end for;
-			end if;
-		end if;
-	end for;
-	if tf then
-		A:=[w3map,w7map,w3map*w7map]; // We will use the automorphisms of X
-						// to enlarge the sets pls1, pls2.
-		for phi in A do
-			for P in pls1 do
-				D:=Pullback(phi,P);
-				pls1:=pls1 join {Decomposition(D)[1,1]};
-			end for;
-			for P in pls2 do
-				D:=Pullback(phi,P);
-				pls2:=pls2 join {Decomposition(D)[1,1]};
-			end for;
-		end for;
-	end if;
-	pls1:=SetToSequence(pls1);
-	pls2:=SetToSequence(pls2);
-	plsbig:=SetToSequence(plsbig);
-	deg2:=[];
-	for i,j in [1..#pls1] do
-		if i le j then
-			Append(~deg2,1*pls1[i]+1*pls1[j]);
-		end if;
-	end for;
-	deg2:=deg2 cat [1*P : P in pls2];
-	return deg2,pls1,pls2,plsbig;
-end function;
-
-ptsX:=PointSearch(X,200);
-bp:=&+[Place(Q) : Q in ptsX];
-cuspdiv:=bp;
-assert Degree(cuspdiv) eq 4;
-deg2,pls1,pls2,plsbig:=searchDiv2(X,3,true);
-pls4:=[DD : DD in plsbig | Degree(DD) eq 4];
-pls3:=[DD : DD in plsbig | Degree(DD) eq 3];
-#pls4;
-deg4:=[1*pl1+1*pl2+1*pl3+1*pl4 : pl1 in pls1, pl2 in pls1, pl3 in pls1, pl4 in pls1] cat [1*pl1 + 1*pl2 : pl1 in pls2, pl2 in pls2] cat [1*pl1 + 1*pl2 : pl1 in pls1, pl2 in pls3] cat [1*pl : pl in pls4];
-deg4pb:=[DD : DD in deg4 | Pullback(w7map,DD) eq DD or Pullback(w7map*w3map,DD) eq DD]; #{DD : DD in deg4 | not DD in deg4pb};
-deg4pb:=[DD : DD in deg4pb | &and[Degree(MinimalPolynomial(Evaluate(mmff1,Decomposition(DD)[i][1]))) lt 2 : i in [1..#Decomposition(DD)]] or &and[Degree(MinimalPolynomial(Evaluate(mmff2,Decomposition(DD)[i][1]))) lt 2 : i in [1..#Decomposition(DD)]] ]; //Take only pullback of rational pts
-deg4npb:={DD : DD in deg4 | not DD in deg4pb}; #deg4npb; 
-bp5:=4*Place(ptsX[1]);
-
-divs:=[7*(Place(ptsX[2])-Place(ptsX[1]))-6*(Place(ptsX[3])-Place(ptsX[1])),Place(ptsX[4])-Place(ptsX[1])];
-alldivs:=[a*divs[1]+b*divs[2] : a in [0..5], b in [0..23]];
-allexcdivs:={};
-nonexcdivs:={};
-for a in [0..5] do
- for b in [0..23] do
-    DD:=a*divs[1]+b*divs[2];
-    RR,phi:=RiemannRochSpace(DD+bp);
-    if Dimension(RR) gt 1 then
-        assert Dimension(RR) eq 2;
-        nonexcdivs:=nonexcdivs join {DD};
-        [a,b];
-        [a,b];
-    elif Dimension(RR) eq 1 then
-        [a,b];
-        DDeff:=(DD + bp+ Divisor(phi(RR.1)));
-        allexcdivs:=allexcdivs join {DDeff};
-    end if;
-end for;
-end for;
-1;
-deg4:=[D : D in allexcdivs | #Decomposition(D) eq 1 and Degree(Decomposition(D)[1][1]) eq 4];
-pls4:=[Decomposition(D)[1][1] : D in deg4];
-assert #[D : D in pls4 | IsTotallyReal(ResidueClassField(D))] eq 0; //So no totally real degree 4 points.
-
-assert #nonexcdivs eq 6;
-E1,mE1:=EllipticCurve(CC1,mm1(ptsX[1]));  
-E2,mE2:=EllipticCurve(CC2,mm2(ptsX[1]));
-MW1,phi1,tf1,tf2:=MordellWeilGroup(E1);
-MW2,phi2,tf3,tf4:=MordellWeilGroup(E2);
+//We check that the MW groups are as claimed.
+MW1,phi1,tf1,tf2:=MordellWeilGroup(E7);
+MW2,phi2,tf3,tf4:=MordellWeilGroup(E21);
 assert &and[tf1,tf2,tf3,tf4];
 assert IsIsomorphic(MW1,AbelianGroup([4]));
 assert IsIsomorphic(MW2,AbelianGroup([3]));
-//This is actually all we need.
- /*
- i:=1;
- tf:=false;
- while tf eq false do
-    DD:=alldivs[i];
-    RR,phi:=RiemannRochSpace(DD+bp);
-    if Dimension(RR) gt 1 and not i eq 1 then
-        assert Dimension(RR) eq 2;
-        nonexcdivs:=nonexcdivs join {DD};
-        tf:=true;
-    end if;
-    i:=i+1;
-end while;*/
 
-for DD in [nonexcdivs[i] : i in [2..#nonexcdivs]] do
-    V,phi:=RiemannRochSpace(DD+bp);
-    D:=DD+bp+Divisor(phi(V.1));
-    f:=ProjectiveFunction(phi(V.2)/phi(V.1));
-    hf:=map<X->ProjectiveSpace(Rationals(),1) | [Numerator(f),Denominator(f)]>;
-    for w in [w7map,w7map*w3map] do
-        if w*hf eq hf and Pullback(w,D) eq D then Index(nonexcdivs,DD);
-        end if;
-    end for;
-end for;
-//This shows that all 2-dimensional Riemann-Roch spaces have basis 1, f where f factors via one of the two elliptic curves.
-//In particular, all of the corresponding degree 4 points are biquadratic.
-/*
-pfD:=&+[Q[2]*Place(mm2(RepresentativePoint(Q[1]))) : Q in Decomposition(D)];
-deg4pb2:={DD : DD in deg4pb1 | not fixed7[1] in [dec[1] : dec in Decomposition(D) | IsOdd(dec[2])]}; */
-
-//Determining the Jacobian
-//We first show that the cuspidal subgroup is Z/6Z x Z/24Z
+//Next, we compute the MW group of X_0(105)/w_5 
+//We first show that the cuspidal subgroup is Z/6Z x Z/24Z by embedding it into J(X)(F_11).
+assert #ptsX eq 4; //We only find the cusps.
 CQgens:=[Divisor(ptsX[i])-Divisor(ptsX[1]) : i in [2,3,4]]; //Generators for the rational cuspidal subgp
 X11:=ChangeRing(X,GF(11));
 assert not IsSingular(X11);
@@ -425,16 +92,14 @@ J11:=Kernel(degr11); //This is J_X(\F_11)
 hC:=hom<Z3 -> J11 | [psi11(reduce(X,X11,DD)) : DD in CQgens]>; //The isomorphic image of the rational cusp subgp inside J11.
 AC:=AbelianGroup([6,24]);
 assert IsIsomorphic(Image(hC),AC);
+assert Order(hC(7*Z3.1-6*Z3.2)) eq 6;
+assert Order(hC(Z3.3)) eq 24;
+assert sub<J11 | [hC(7*Z3.1-6*Z3.2),hC(Z3.3)]> eq Image(hC);
+divs:=[7*(Place(ptsX[2])-Place(ptsX[1]))-6*(Place(ptsX[3])-Place(ptsX[1])),Place(ptsX[4])-Place(ptsX[1])];
 
-//We compute J_X(\F_p) for various primes p to pin down J_X(\Q) up to two factors of Z/2Z.
+//We compute J_X(\F_p) for p=11 and p=13 to pin down J_X(\Q) up to two factors of Z/2Z.
 A11:=AbelianGroup([2,2,60,600]);
 A13:=AbelianGroup([2,6,6,3168]);
-X11:=ChangeRing(X,GF(11));
-assert not IsSingular(X11);
-Z:=FreeAbelianGroup(1);
-C11,phi11,psi11:=ClassGroup(X11);
-degr11:=hom<C11->Z | [Degree(phi11(a))*Z.1 : a in OrderedGenerators(C11)]>;
-J11:=Kernel(degr11);
 assert IsIsomorphic(J11,A11);
 
 X13:=ChangeRing(X,GF(13));
@@ -471,14 +136,6 @@ DD21:=Divisor(X21,IDD21);
 dec21:=Decomposition(DD21);
 assert #dec21 eq 2; //DD splits over Q21 into two parts of degree 2.
 Deff:=1*dec21[1][1]; //This is the divisor we desire. Its pushforward is 1*D2.
-
-/*I:=ideal<R21 | [
-    x[4]^2 + 1/41*(-16*t + 28)*x[4]*x[5] + 1/205*(-8*t - 68)*x[5]^2,
-    x[1] + 1/2*(-5*t + 19)*x[4] - x[5],
-    x[2] + (t - 3)*x[4],
-    x[3] + 1/2*(-t + 1)*x[4]
-]>;
-Deff:=Divisor(X21,I);*/
 P0:=Divisor(X21!Eltseq(ptsX[1]));
 D:=Deff-2*P0;
 cuspgens:=[Divisor(X21!Eltseq(ptsX[i])) - P0 : i in [2,3,4]]; //Generators of the rat. cuspidal subgp. basechanged to Q21.
@@ -504,14 +161,13 @@ assert Order(h17(3*Z4.1-Z4.2-2*Z4.3+Z4.4)) eq 2; //twotors is indeed a non-trivi
 //However, J17 still has J17[2] \simeq (Z/2Z)^4. Do we need to find an extra 2-torsion element?
 //NO! We can compare with J47 to show that there do not exist isomorphic subgroups A1,A2 of J17 and J47
 //respectively containing (Z/2Z)^4 such that the isomorphism A1 -> A2 restricted to  
-//to the image of the rational cuspidal subgroup is the map it should be.
-//load quadpts.m
+//to the image of the rational cuspidal subgroup is the map it should be. This uses the algorithm of Ozman and Siksek.
 
 p:=17;
 Xp:=ChangeRing(X,GF(17));
 P0:=Divisor(ptsX[1]);
-divs:=[Divisor(ptsX[i]) : i in [2,3,4]];
-h,Ksub,bas,divsNew:=findGenerators(X,divs,P0,p);
+divspts:=[Divisor(ptsX[i]) : i in [2,3,4]];
+h,Ksub,bas,divsNew:=findGenerators(X,divspts,P0,p); 
 homs:=possibleJList(X,divsNew,P0,Ksub,bas,[17,47]);
 imgs:=[Image(hh) : hh in homs]; //The possibilities for J_X(Q(\sqrt{21})) as abstract group.
 for H in imgs do
@@ -522,137 +178,63 @@ end for;
 //Since we checked that the class of twotors is not defined over Q, we conclude that J_X(Q)[2] \simeq (Z/2Z)^2.
 //It thus follows that J_X(Q) is equal to the rational cuspidal subgroup.
 
-//We now compute X_0(105) as a double cover of X_0(105)/w5.
 
-C:=CuspForms(105);
-assert Dimension(C) eq 13;
-w5:=AtkinLehnerOperator(C,5);
-N5:=Nullspace(Matrix(w5-1));
-N5c:=Nullspace(Matrix(w5+1));
-assert Dimension(N5) eq 5;
-B5:=[&+[(Integers()!(2*Eltseq(Basis(N5)[i])[j]))*C.j : j in [1..Dimension(C)]] : i in [1..Dimension(N5)]];
-B5c:=[&+[(Integers()!(2*Eltseq(Basis(N5c)[i])[j]))*C.j : j in [1..Dimension(C)]] : i in [1..Dimension(N5c)]];
-dim:=13;
-prec:=500;
-N:=105;
-L<q>:=LaurentSeriesRing(Rationals(),prec);
-R<[x]>:=PolynomialRing(Rationals(),dim);
-Bexp:=[L!qExpansion((B5c cat B5)[i],prec) : i in [1..dim]];
+//Next, we determine the set of quartic points that do not map to a quadratic point on E_7 or E_21.
+//WARNING: This bit takes a few hours.
 
-eqns:=[R | ];
-	d:=1;
-	tf:=false;
-	while tf eq false do
-		d:=d+1;
-		mons:=MonomialsOfDegree(R,d);
-		monsq:=[Evaluate(mon,Bexp) : mon in mons];
-		V:=VectorSpace(Rationals(),#mons);
-		W:=VectorSpace(Rationals(),prec-10);
-		h:=hom<V->W | [W![Coefficient(monsq[i],j) : j in [1..(prec-10)]] : i in [1..#mons]]>;
-		K:=Kernel(h);
-		eqns:=eqns cat [ &+[Eltseq(V!k)[j]*mons[j] : j in [1..#mons] ] : k in Basis(K)  ];
-        I:=Radical(ideal<R | eqns>);
-		X105:=Scheme(ProjectiveSpace(R),I);
-		if Dimension(X105) eq 1 then
-				X105:=Curve(ProjectiveSpace(R),eqns);
-				if Genus(X105) eq dim then
-					tf:=true;
-				end if;
-		end if;
-	end while;
-//We don't check that X105 is non-singular; that gives an error somehow. I think because there are more equations than variables. Anyway, I think X105 has to be non-singular by construction.
+allexcdivs:={};
+nonexcdivs:={};
+bp:=&+[Place(pt) : pt in ptsX];
+for a in [-2..3] do
+ for b in [-11..12] do
+    [a,b];
+    DD:=a*divs[1]+b*divs[2];
+    RR,phi:=RiemannRochSpace(DD+bp);
+    if Dimension(RR) gt 1 then
+        assert Dimension(RR) eq 2;
+        nonexcdivs:=nonexcdivs join {DD};
+    elif Dimension(RR) eq 1 then
+        DDeff:=(DD + bp+ Divisor(phi(RR.1)));
+        allexcdivs:=allexcdivs join {DDeff};
+    end if;
+end for;
+end for;
+deg4:=[D : D in allexcdivs | #Decomposition(D) eq 1 and Degree(Decomposition(D)[1][1]) eq 4];
+deg2dec:=&cat[[d[1] :d  in Decomposition(D)] : D in allexcdivs | #Decomposition(D) gt 1 or Decomposition(D)[1][2] gt 1];
+deg2:=Setseq({D : D in deg2dec | Degree(D) eq 2});
+pls4:=[Decomposition(D)[1][1] : D in deg4];
 
-f:=9*x[9]^2 - 6*x[9]*x[10] + x[10]^2 + 6*x[10]*x[11] + 21*x[10]*x[12] - 
-    12*x[10]*x[13] - 17*x[11]^2 + 19*x[11]*x[12] + 18*x[11]*x[13] + 7*x[12]^2 - 
-    18*x[12]*x[13] + 27*x[13]^2;
-g:=3*x[1] - x[2] + x[4] + x[5] + x[6] + 7*x[7] - x[8];
-assert g^2-f in Ideal(X105);
+//The degree 2 places come from E_7(Q) or E_21(Q) and thus correspond to Q-curves.
+assert &and[&or[Degree(Place(pr(RepresentativePoint(P)))) eq 1 : pr in [prE7,prE21]] : P in deg2];
 
-CR<x1,x2,x3,x4,x5,z>:=PolynomialRing(Rationals(),6);
-fff:=Evaluate(f,[0,0,0,0,0,0,0,0,x1,x2,x3,x4,x5]);
-defsX:=[Evaluate(eqn,[x1,x2,x3,x4,x5]) : eqn in DefiningEquations(X)];
-XX105:=Curve(Scheme(ProjectiveSpace(CR),[z^2-fff] cat defsX));
-assert Genus(XX105) eq 13;
-pi:=map<XX105 -> X | [x1,x2,x3,x4,x5]>;
-
-//We can use this to check which degree 4 places on X_0(105)/w_5 come from degree 4 places on X_0(105).
+//We check that no "exceptional" degree 4 place on X_0(105)/w_5 lifts to a degree 4 place on X_0(105).
 CR<[y]>:=CoordinateRing(AmbientSpace(X));
 ff:=Evaluate(f,[0,0,0,0,0,0,0,0,y[1],y[2],y[3],y[4],y[5]]);
 for P in pls4 do
- PP:=RepresentativePoint(P);
- i:=[a : a in [1..#Eltseq(PP)] | not Eltseq(PP)[a] eq 0][1];
- K:=ResidueClassField(P);
- KK:=AbsoluteField(K);
- ffunction:=FFX!((FX!ff)/(FX!x[i]^2));
- evP:=KK!Evaluate(ffunction,P);
- d:=Degree(MinimalPolynomial(evP));
- if not d eq 4 then 
- Append(~pls4pb,P);
- elif IsSquare(evP) then
- Append(~pls4pb,P);
- end if;
+    PP:=Eltseq(RepresentativePoint(P));
+    assert not IsSquare(ResidueClassField(P)!Evaluate(ff,PP));
 end for;
-assert #pls4pb eq 0; //The answer is: none.
 
-//------------------------------------------------------------
+assert #nonexcdivs eq 6;
+nonexcdivs:=Setseq(nonexcdivs);
+//By counting, these must be the classes coming from E_7 and E_21. We doublecheck this anyway.
+for DD in nonexcdivs do
+    V,phi:=RiemannRochSpace(DD+bp);
+    D:=DD+bp+Divisor(phi(V.1));
+    fn:=ProjectiveFunction(phi(V.2)/phi(V.1));
+    hf:=map<X->ProjectiveSpace(Rationals(),1) | [Numerator(fn),Denominator(fn)]>;
+    assert &or[(w*hf eq hf and Pullback(w,D) eq D) : w in [w7map,w7map*w3map]];
+end for;
+//This shows that all 2-dimensional Riemann-Roch spaces have basis 1, f where f factors via one of the two elliptic curves.
 
-D:=Setseq(nonexcdivs)[2];
-RR,phi:=RiemannRochSpace(D+bp);
-bD:=Basis(Ideal(D+bp+Divisor(phi(RR.1))));
-P<t>:=PolynomialRing(Rationals(),1);
-  Qt<t>:=FieldOfFractions(P);
-  Xt:=ChangeRing(X,Qt);
-  R<[x]>:=CoordinateRing(AmbientSpace(Xt));
- FX:=FunctionField(X);
-FXt:=FunctionField(Xt);
-FXA,tr:=AlgorithmicFunctionField(FX);
-FXtA,trt:=AlgorithmicFunctionField(FXt);
-iF:=hom<FXA -> FXtA | FXtA.1>;
-f1:=Inverse(trt)(iF(tr(phi(RR.1))));
-f2:=Inverse(trt)(iF(tr(phi(RR.2))));
-bDt:=[Evaluate(bb,x) : bb in bD];
-IDt:=ideal<CoordinateRing(AmbientSpace(Xt)) | bDt>;
-Dt:=Divisor(Xt,IDt);
-DDt:=Dt+Divisor(t+f2/f1);
-Plt:=Decomposition(DDt)[1][1];
-CRF:=FieldOfFractions(CoordinateRing(AmbientSpace(Xt)));
-ft:=9*x[1]^2 - 6*x[1]*x[2] + x[2]^2 + 6*x[2]*x[3] + 21*x[2]*x[4] - 12*x[2]*x[5] - 
-    17*x[3]^2 + 19*x[3]*x[4] + 18*x[3]*x[5] + 7*x[4]^2 - 18*x[4]*x[5] + 
-    27*x[5]^2;
-fft:=FunctionField(Xt)!((CRF!ft)/(CRF!x[1]^2));
-evt:=Evaluate(fft,Plt);
-K:=Parent(evt);
-PK<t0,t1,t2,t3>:=PolynomialRing(K,4);
-genericsquare:=(t0+t1*K.1+t2*K.1^2+t3*K.1^3)^2;
-cfs,mons:=CoefficientsAndMonomials(genericsquare);
-cfsseqs:=[Eltseq(a) : a in cfs];
-cfsfseqs:=[];   
-for a in cfsseqs do
-    k:=4-#a;
-    b:=a cat [0*i : i in [1..k]];
-    assert #b eq 4;
-    Append(~cfsfseqs,b); 
-end for;
-Kcfs:=[&+[cfsfseqs[m][j]*mons[m] : m in [1..#mons]] : j in [1..4]]; //We gather the coefficients for 1,K.1,K.1^2,K.1^3
-PP<tt,tt0,tt1,tt2,tt3>:=PolynomialRing(Rationals(),5);
-eqns:=[];
-for i in [1..4] do
-    l:=LCM([Denominator(Qt!c) : c in Coefficients(Kcfs[i])]);
-    l2:=Denominator(Qt!Eltseq(evt)[i]);
-    den:=LCM([l,l2]);
-    eqn:=den*(Kcfs[i]-Eltseq(evt)[i]);
-    cfs,mons:=CoefficientsAndMonomials(eqn);
-    eqn:=&+[Evaluate(P!cfs[j],[tt])*Evaluate(mons[j],[tt0,tt1,tt2,tt3]) : j in [1..#mons]];
-    Append(~eqns,eqn);
-end for;
-A:=AffineSpace(PP);
-crv:=Curve(Scheme(A,eqns));
+
 
 //---------------------------------------------------------------
 //We need to find the quadratic points on X_0(105)/w_35 (genus 3 non-hyp), X_0(105)/w_7,w_105 and X_0(105)/w_7,w21 (both genus 3 hyp).
 //For the first of these it is hard to determine the MW group. In a separate file we use the bitangents to show that its 2-torsion is Z/2 x Z/2.
 
-X35:=ModularCurveQuotient(105,[35]);
+X35,wmaps:=ModCrvQuot(105,[35],[3,5]); //This is X_0(35), and wmaps=[w3,w5]
+Xstar,proj35star:=CurveQuotient(AutomorphismGroup(X35,wmaps));
 
 RatPtsSubgp:=function(XX,p) //Contains the cuspidal subgp if all cusps are rational (which is the case here)
 if not IsHyperelliptic(XX) then
@@ -666,10 +248,12 @@ CCp,phip,psip:=ClassGroup(Xp);
 Z:=FreeAbelianGroup(1);
 degrp:=hom<CCp->Z | [Degree(phip(a))*Z.1 : a in OrderedGenerators(CCp)]>;
 Jp:=Kernel(degrp); //This is J_XX(\F_11)
-hC:=hom<ZZ -> Jp | [psip(Place(Xp![GF(p)!a : a in Eltseq(ptsXX[i])])-Place(Xp![GF(p)!a : a in Eltseq(ptsXX[1])])) : i in [2..#ptsXX]]>; //The isomorphic image of the rational cusp subgp inside J13.
+hC:=hom<ZZ -> Jp | [psip(Place(Xp![GF(p)!a : a in Eltseq(ptsXX[i])])-Place(Xp![GF(p)!a : a in Eltseq(ptsXX[1])])) : i in [2..#ptsXX]]>; 
+//The isomorphic image of the rational cusp subgp inside Jp.
 return Image(hC),hC;
 end function;
 
+//The below function computes a list of mod p MW groups
 MWgpmodp:=function(X,primes)
 Z:=FreeAbelianGroup(1);
 mwgps:=[];
@@ -685,40 +269,46 @@ end for;
 end function;
 
 CQ,hC:=RatPtsSubgp(X35,13);
-CQ;
-MWgpmodp(X35,[11,29,107]);
-//Since 1580/8 is odd, this shows that the MW gp must be one of Z/4 x Z/8, Z/2 x Z/4 x Z/8, Z/2 x Z/2 x Z/4 x Z/8.
-//By our bitangent computation, we conclude that the MWgp is CQ = Z/4 x Z/8, generated by the differences of rational points.
+assert IsIsomorphic(CQ,AbelianGroup([4,8]));
+mwgps35:=MWgpmodp(X35,[11,107]);
+assert IsIsomorphic(mwgps35[1],AbelianGroup([2,2,4,96]));
+assert IsIsomorphic(mwgps35[2],AbelianGroup([2,4,120,1560]));
+//Since 1560/8 is odd, this shows that the MW gp must be one of Z/4 x Z/8, Z/2 x Z/4 x Z/8, Z/2 x Z/2 x Z/4 x Z/8.
+//By our bitangent computation (different file), we conclude that the MWgp is CQ = Z/4 x Z/8, generated by the differences of rational points.
 
+Zk:=Domain(hC);
 assert sub<CQ | hC(Zk.1),hC(Zk.3)> eq CQ;
 assert Order(hC(Zk.1)) eq 8;
-assert Order(hC(Zk.3)) eq 4;
-//This shows that CQ is generated by ptsX[2]-ptsX[1] and ptsX[4]-ptsX[1], with orders 8 and 4 respectively.
-ptsX:=PointSearch(X35,200);
-MWgp:=[a*(Divisor(ptsX[2])-Divisor(ptsX[1]))+b*(Divisor(ptsX[4])-Divisor(ptsX[1])) : a in [0..7], b in [0..3]]; 
+assert Order(hC(Zk.1+Zk.3)) eq 4;
+//This shows that CQ is generated by ptsX[2]+ptsX[4]-2*ptsX[1] and ptsX[4]-ptsX[1], with orders 8 and 4 respectively.
+ptsX:=PointSearch(X35,500);
+MWgp:=[a*(Divisor(ptsX[2])+Divisor(ptsX[4])-2*Divisor(ptsX[1]))+b*(Divisor(ptsX[4])-Divisor(ptsX[1])) : a in [0..7], b in [0..3]]; 
 
-quadpts:=[];
-for D in MWgp do
-    RR,phi:=RiemannRochSpace(D+2*Divisor(ptsX[1]));
+//Computes all effective degree d=Degree(D0) divisors mapping into the classes in divlist under the Abel-Jacobi map defined by D |--> [D-D0]
+//Works only if all Riemann--Roch spaces are at most 1-dimensional
+AbelJacobiInverse:=function(divlist,D0)
+degddivs:=[];
+for D in divlist do
+    RR,phi:=RiemannRochSpace(D+D0);
     assert Dimension(RR) le 1; //Sanity check. If false then X would be hyperelliptic.
     if Dimension(RR) eq 1 then
-    f:=phi(RR.1);
-    DD:=D+2*Divisor(ptsX[1])+Divisor(f);
-    dec:=Decomposition(DD);
-    if #dec eq 1 and dec[1][2] eq 1 then //We are not interested in rational points, as those correspond to quadratic points on X_0(105).
-        Append(~quadpts,dec[1][1]);
-    end if;
+        Append(~degddivs,D+D0+Divisor(phi(RR.1)));
     end if;
 end for;
-realquadpts:=[P : P in quadpts | IsTotallyReal(ResidueClassField(P))];
-notoverQrt5:=[P : P in realquadpts | not IsIsomorphic(ResidueClassField(P),QuadraticField(5))];
-//The field Q(rt5) is exceptional.
-assert notoverQrt5 eq []; //So X_0(105)/w35 does not contribute to the quartic points on X_0(105) that are real and not defined over Q(rt5).
+return degddivs;
+end function;
 
+//We determine the quadratic points on X_0(35)
+quaddivs:=AbelJacobiInverse(MWgp,2*Divisor(ptsX[1]));
+quadpts:=Set([Decomposition(D)[1][1] : D in quaddivs | Degree(Decomposition(D)[1][1]) eq 2]);
+assert #quadpts eq 2;
+assert &and[Degree(Place(proj35star(RepresentativePoint(P)))) eq 1 : P in quadpts];
+//This shows that all two points map to a rational point in X_0(105)* so correspond to Q-curves.
 
+//Next, we consider the hyperelliptic curves.
 X7,ws:=ModCrvQuot(105,[7],[3,21,105]); //X_0(105)/w7
 X73,pi3:=CurveQuotient(AutomorphismGroup(X7,[ws[1]])); //X_0(105)/w7,w3
-X21,wss:=ModCrvQuot(105,[21],[7]);
+X21,wss:=ModCrvQuot(105,[21],[7,5]);
 X105,wsss:=ModCrvQuot(105,[105],[7]);
 X721,pi21:=CurveQuotient(AutomorphismGroup(X7,[ws[2]])); //X_0(105)/w7,w21
 X217,pi7:=CurveQuotient(AutomorphismGroup(X21,[wss[1]])); //X_0(105)/w21,w7
@@ -738,7 +328,9 @@ pii7:=pii7*m*mm; //We choose odd degree Weierstrass models for all three hyperel
 CQ,hC:=RatPtsSubgp(X217,11);
 assert IsIsomorphic(CQ,AbelianGroup([32]));
 assert Order(hC(Domain(hC).1)) eq 32; //Generated by ptsX217[2]-ptsX217[1];
-MWgpmodp(X721,[13,31,43]); //This shows that J_X217(Q) is either Z/2 x Z/32 or Z/32.
+mwgps:=MWgpmodp(X721,[13,31,43]);
+assert &and[IsIsomorphic(mwgps[1],AbelianGroup([16,128])),IsIsomorphic(mwgps[2],AbelianGroup([2,16,32,32])),IsIsomorphic(mwgps[3],AbelianGroup([2,2,2,7520]))];
+//This shows that J_X217(Q) is either Z/2 x Z/32 or Z/32.
 J217:=Jacobian(X217);
 tt,phi:=TwoTorsionSubgroup(J217);
 assert #tt eq 4; //So it's Z/2 x Z/32. We now determine the Z/2Z generator as a difference of divisors.
@@ -746,52 +338,83 @@ ptsX217:=Points(X217 : Bound:=200);
 D1:=Divisor(ptsX217[2])-Divisor(ptsX217[1]);
 assert 16*(J217!D1) eq phi(tt.1); //So phi(tt.2) is the other generator.
 
+//From the description of phi(tt.2), we can read off the corresponding divisor
 CR<xx,yy,zz>:=CoordinateRing(AmbientSpace(X217));
 I:=ideal<CR | yy*zz, xx^2+xx*zz-zz^2>;
 D2:=Divisor(X217,I)-2*Divisor(ptsX217[1]);
 assert J217!D2 eq phi(tt.2);
-MWgp:=[a*D1+b*D2 : a in [0..31], b in [0..1] | not [a,b] eq [0,0]]; //We exclude the zero class since that corresponds to rational points on X_0(105)^* --> modular elliptic curves
-assert #AutomorphismGroup(X217) eq 2; //Indeed the hyperelliptic involution and the remaining A--L involution agree.
-quadpts:=[];
-for D in MWgp do
-    RR,phi:=RiemannRochSpace(D+2*Divisor(ptsX217[1]));
-    assert Dimension(RR) le 1; //Sanity check. If false then X would be hyperelliptic.
-    if Dimension(RR) eq 1 then
-    f:=phi(RR.1);
-    DD:=D+2*Divisor(ptsX217[1])+Divisor(f);
-    dec:=Decomposition(DD);
-    for d in dec do
-        Append(~quadpts,d[1]);
-    end for;
-    end if;
-end for;
-notoverQrt5:=[P : P in quadpts | not IsIsomorphic(ResidueClassField(P),QuadraticField(5))]; //The field Q(rt5) is exceptional.
-for D in notoverQrt5 do
-    dec:=Decomposition(Pullback(pi7,D));
-    for d in dec do
-    assert &or[Degree(d[1]) in [4,1], not IsTotallyReal(ResidueClassField(d[1])), IsIsomorphic(ResidueClassField(d[1]),QuadraticField(5))];
-    end for;
-end for;
-//This shows that X_0(105)/w_21 has no quadratic points over fields other than Q(sqrt5).
+MWgp:=[a*D1+b*D2 : a in [0..31], b in [0..1] | not [a,b] eq [0,0]];
+//We exclude the zero class since that corresponds to rational points on X_0(105)^* --> Q-curves
+assert #AutomorphismGroup(X217) eq 2; //Check that the hyperelliptic involution and the remaining A--L involution are equivalent.
+//We now determine the quadratic points that are not the pullback from a rational point on X_0(105)^*
+quaddivs:=AbelJacobiInverse(MWgp,2*Divisor(ptsX217[1]));
+quadpts:=Set([Decomposition(D)[1][1] : D in quaddivs | Degree(Decomposition(D)[1][1]) eq 2]);
 
-//Next up is X721... which happens to be the same curve as X217, but we computed it separately to have the map from X_0(105)/w7 towards it as well.
-//In fact, the models for X721 and X217 that we have chosen are the same, so after relating them, we have the MW group.
+//Note that X721 is the same curve as X217, but we computed it separately to have the map from X_0(105)/w7 towards it as well.
+//In fact, the models for X721 and X217 that we have chosen are the same, so after relating them, we also have the degree 2 divisors on X721.
 tf,isom:=IsIsomorphic(X721,X217); //Funny: the isomorphism Magma chooses between identical models is the hyperelliptic involution
 assert tf;
 pi21:=pi21*isom; 
-for D in notoverQrt5 do
-    dec:=Decomposition(Pullback(pi21,D));
-    for d in dec do
-    assert &or[Degree(d[1]) in [4,1], not IsTotallyReal(ResidueClassField(d[1])), IsIsomorphic(ResidueClassField(d[1]),QuadraticField(5))];
+
+//We pull these quadratic points back to X_0(105)/w_{21} and X_0(105)/w_7
+quadptspb7:=[];
+quadptspb21:=[];
+quadpts721:=[];
+for D in quadpts do
+    dec7:=Decomposition(Pullback(pi7,D));
+    dec21:=Decomposition(Pullback(pi21,D));
+    for d in dec7 do
+        if Degree(d[1]) eq 2 then Append(~quadptspb7,d[1]); 
+        Append(~quadpts721,D);
+        end if;
     end for;
+    for d in dec21 do
+       if Degree(d[1]) eq 2 then Append(~quadptspb21,d[1]); 
+        end if;
+    end for; 
 end for;
-//This shows that X_0(105)/w_7  has no quadratic points over fields other than Q(sqrt5).
+assert #Set(quadptspb7) eq 2;
+assert #Set(quadptspb21) eq 0;
+assert &and[IsIsomorphic(ResidueClassField(P),QuadraticField(5)) : P in Set(quadptspb7)];
+//This is remarkable: we find two quadratic points on X_0(105)/w_{21} that do not map to a rational pt on X_0(105)*, and both are defined over Q(rt5).
+
+//We investigate these two (pairs of) quadratic points further.
+//Computing the j-invariant map on X_0(105) is too computationally expensive, so we try something else.
+w5:=wss[2];
+assert &and[w5(RepresentativePoint(P)) eq RepresentativePoint(P) : P in Set(quadptspb7)];
+//The quadratic points are fixed by w5 on X_0(105)/w_{21}, so each quartic point on X_0(105) mapping to one of these points is fixed by either w_5 or w_105.
+//If fixed by w_5, then also their image in X_0(5) is fixed by w_5. 
+X5:=SmallModularCurve(5);
+j5:=jInvariant(X5,5);
+w5:=AtkinLehnerInvolution(X5,5,5);
+CR<[x]>:=CoordinateRing(AmbientSpace(X5)); 
+I:=ideal<CR | [x[1]*DefiningEquations(w5)[2]-x[2]*DefiningEquations(w5)[1]]>;
+fixedw5div:=Divisor(X5,I);
+assert #Decomposition(fixedw5div) eq 1;
+fixedpl:=Decomposition(fixedw5div)[1][1];
+assert w5(RepresentativePoint(fixedpl)) eq RepresentativePoint(fixedpl);
+tf,isom:=IsIsomorphic(ResidueClassField(fixedpl),QuadraticField(5));
+assert tf; //Indeed defined over Q(rt5), but quadratic!
+rt5:=QuadraticField(5).1;
+assert Coefficients(MinimalPolynomial(isom(Evaluate(j5,RepresentativePoint(fixedpl))))) eq Coefficients(MinimalPolynomial(282880*rt5 + 632000));
+
+//If fixed by w_{105}, then we compute an equation it must satisfy on our canonical model for X_0(105). Recall that seqs105[2] is a matrix for w_105.
+assert Eltseq(Basis(Kernel(Matrix(seqs105[2])-1))[5]) eq [0,0,0,0,0,0,0,0,1,0,-2,-2,-1];
+//It is too computationally expensive to compute divisors on X_0(105) fixed by w_105, but we notice that the equation x[9]-2x[11]-2x[12]-x[13] holds true on X_0(105). This is an equation between coordinates coming from X_0(105)/w_5.
+CR<[y]>:=CoordinateRing(AmbientSpace(X));
+I:=ideal<CoordinateRing(AmbientSpace(X)) | y[1]-2*y[3]-2*y[4]-y[5]>;
+fixeddiv:=Divisor(X,I);
+assert #Decomposition(fixeddiv) eq 2;
+assert &and[Degree(d[1]) eq 4 : d in Decomposition(fixeddiv)];
+assert &and[not IsSquare(ResidueClassField(d[1])!Evaluate(ff,Eltseq(RepresentativePoint(d[1])))) : d in Decomposition(fixeddiv)];
+//This means that the places fixed by w_{105} on X_0(105) have degree 8. 
 
 //Next up is X1057.
 CQ,hC:=RatPtsSubgp(X1057,11);
 assert IsIsomorphic(CQ,AbelianGroup([16]));
 assert Order(hC(Domain(hC).1)) eq 16; //Generated by ptsX1057[2]-ptsX1057[1].
-MWgpmodp(X1057,[11,17,79]); //These show that the MWgp is either Z/2 x Z/16 or Z/16 (note that 10704/16 is odd).
+mwgps1057:=MWgpmodp(X1057,[11,17,79]); 
+assert &and[IsIsomorphic(mwgps1057[1],AbelianGroup([2,2,256])), IsIsomorphic(mwgps1057[2],AbelianGroup([4,2496])), IsIsomorphic(mwgps1057[3],AbelianGroup([2,2,16,10704]))]; //These show that the MWgp is either Z/2 x Z/16 or Z/16 (note that 10704/16 is odd).
 J1057:=Jacobian(X1057);
 tt,phi:=TwoTorsionSubgroup(J1057);
 assert #tt eq 4; //So it's Z/2 x Z/16. We now determine the Z/2Z generator as a difference of divisors.
@@ -802,92 +425,21 @@ CR<xx,yy,zz>:=CoordinateRing(AmbientSpace(X1057));
 I:=ideal<CR | yy*zz, xx^2-5/7*xx*zz+1/7*zz^2>;
 D2:=Divisor(X1057,I)-2*Divisor(ptsX1057[1]);
 assert J1057!D2 eq phi(tt.1);
-MWgp:=[a*D1+b*D2 : a in [0..7], b in [0..1] | not [a,b] eq [0,0]]; //We exclude the zero class since that corresponds to rational points on X_0(105)^* --> modular elliptic curves
-assert #AutomorphismGroup(X1057) eq 2; //Indeed, the hyperlliptic involution and the remaining A--L involution agree.
-quadpts:=[];
-for D in MWgp do
-    RR,phi:=RiemannRochSpace(D+2*Divisor(ptsX1057[1]));
-    assert Dimension(RR) le 1; //Sanity check. If false then X would be hyperelliptic.
-    if Dimension(RR) eq 1 then
-    f:=phi(RR.1);
-    DD:=D+2*Divisor(ptsX1057[1])+Divisor(f);
-    dec:=Decomposition(DD);
-    if #dec eq 1 and dec[1][2] eq 1 then //We are not interested in rational points, as those correspond to quadratic points on X_0(105).
-        Append(~quadpts,dec[1][1]);
-    end if;
-    end if;
-end for;
+MWgp:=[a*D1+b*D2 : a in [0..7], b in [0..1] | not [a,b] eq [0,0]]; //We exclude the zero class since that corresponds to rational points on X_0(105)^* --> Q-curves
+assert #AutomorphismGroup(X1057) eq 2; //Indeed, the hyperlliptic involution and the remaining A--L involution are equivalent.
+quaddivs:=AbelJacobiInverse(MWgp,2*Divisor(ptsX1057[1]));
+quadpts:=Set([Decomposition(D)[1][1] : D in quaddivs | Degree(Decomposition(D)[1][1]) eq 2]);
 for D in quadpts do
     dec:=Decomposition(Pullback(pii7,D));
     for d in dec do
-    assert &or[Degree(d[1]) in [4,1], not IsTotallyReal(ResidueClassField(d[1])), IsIsomorphic(ResidueClassField(d[1]),QuadraticField(5))];
+    assert Degree(d[1]) eq 4;
     end for;
 end for;
-//This shows that X_0(105)/w105 has no quadratic points.
+//This shows that X_0(105)/w105 has no quadratic points that do not come from a rational point on X_0(105)^*
 
-//Finally, we shouldn't forget to look at X_0(105)/w_5 itself.
-quadpts:=[];
-for D in alldivs do
-    RR,phi:=RiemannRochSpace(D+2*Divisor(ptsX[1]));
-    assert Dimension(RR) le 1; //Sanity check. If false then X would be hyperelliptic.
-    if Dimension(RR) eq 1 then
-    f:=phi(RR.1);
-    DD:=D+2*Divisor(ptsX[1])+Divisor(f);
-    dec:=Decomposition(DD);
-    if #dec eq 1 and dec[1][2] eq 1 then //We are not interested in rational points, as those correspond to quadratic points on X_0(105).
-        Append(~quadpts,dec[1][1]);
-    end if;
-    end if;
-end for;
-realquadpts:=[P : P in quadpts | IsTotallyReal(ResidueClassField(P))];
-assert #realquadpts eq 2; //We need to pull back all the way to X_0(105) to check these.
-pbs:=[Pullback(pi,P) : P in realquadpts];
-decss:=[Decomposition(D) : D in pbs];
-assert #decss[1] eq 1 and #decss[2] eq 1 and decss[1][1][2] eq 1 and decss[2][1][2] eq 1; //Both pull back to degree 4 places.
-K1:=ResidueClassField(decss[1][1][1]);
-K2:=ResidueClassField(decss[2][1][1]);
-assert IsIsomorphic(K1,K2);
-assert IsSubfield(QuadraticField(5),K1);
-//We have found two 4-tuples of quartic points on X_0(105), but they are defined over a field containing Q(sqrt5).
-//This finishes the proof that all totally real quartic points on X_0(105) not defined over a field containing Q(sqrt5) correspond to modular elliptic curves.
-
-//------------------------------------------------------------------------
-
-
-
-ptsX:=PointSearch(X,200);
-CQgens:=[Divisor(ptsX[i])-Divisor(ptsX[1]) : i in [2..5]]; //Generators for the rational cuspidal subgp
-XX11:=ChangeRing(X,GF(13));
-assert not IsSingular(XX11);
-Z3:=FreeAbelianGroup(4);
-C11,phi11,psi11:=ClassGroup(XX11);
-Z:=FreeAbelianGroup(1);
-degr11:=hom<C11->Z | [Degree(phi11(a))*Z.1 : a in OrderedGenerators(C11)]>;
-J11:=Kernel(degr11); //This is J_X(\F_11)
-hC:=hom<Z3 -> J11 | [psi11(reduce(X,XX11,DD)) : DD in CQgens]>; //The isomorphic image of the rational cusp subgp inside J13.
-cuspgp:=Image(hC);
-AC:=AbelianGroup([6,24]);
-assert IsIsomorphic(Image(hC),AC);
-
-
-
-for i in [1..100] do
-i;
-P:=plsbig[i];
-K:=ResidueClassField(P);
-prs:=[q : q in PrimesUpTo(42) | #Decomposition(K,q) eq 3];
-if 13 in prs then
-    redP:=Decomposition(reduce(X,XX11,P))[1][1];
-    extra:=psi11(redP-reduce(X,XX11,P0));
-    sub<J11 | [x : x in cuspgp] cat [extra]>;
-end if;
-end for;
-
-
-
-
-
-
-
-
-    
+//Finally, note that we have already studyied the quadratic points on X_0(105), but we doublecheck them anyway.
+alldivs:=[a*divs[1]+b*divs[2] : a in [-2..3], b in [11..12]];
+quaddivs:=AbelJacobiInverse(alldivs,2*Place(PointSearch(X,200)[1]));
+quadpts:=Set([Decomposition(D)[1][1] : D in quaddivs | Degree(Decomposition(D)[1][1]) eq 2]);
+//The degree 2 places come from E_7(Q) or E_21(Q) and thus correspond to Q-curves.
+assert &and[&or[Degree(Place(pr(RepresentativePoint(P)))) eq 1 : pr in [prE7,prE21]] : P in deg2];

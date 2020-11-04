@@ -323,6 +323,9 @@ Z1057,m:=SimplifiedModel(X1057);
 tf,X1057,mm:=HasOddDegreeModel(Z1057); assert tf;
 pii7:=pii7*m*mm; //We choose odd degree Weierstrass models for all three hyperelliptic curves.
 
+//Remaining Atkin--Lehner involution = Hyperelliptic involution
+assert #AutomorphismGroup(X721) eq 2;
+assert #AutomorphismGroup(X1057) eq 2;
 
 //We start with X217.
 CQ,hC:=RatPtsSubgp(X217,11);

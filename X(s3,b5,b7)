@@ -1,13 +1,30 @@
+//This is the Magma code for X(s3,b5,b7) accompanying the paper Elliptic curves over quartic fields not containing sqrt(5) are modular, by Josha Box
+
+//First we check that only quadratic points Q on X_0(5) satisfy j(Q) = j(w5(Q)).
+X05:=SmallModularCurve(5);
+w5:=AtkinLehnerInvolution(X05,5,5);
+j:=jFunction(X05,5);
+X1:=Curve(ProjectiveSpace(Rationals(),1));
+jmap:=map<X05 ->X1 | [Numerator(ProjectiveFunction(j)), Denominator(ProjectiveFunction(j))]>;
+jw5map:=w5*jmap;
+jw5fun:=FunctionField(X05)!(DefiningEquations(jw5map)[1]/DefiningEquations(jw5map)[2]);
+jdiff:=map<X05->X1 | [Numerator(ProjectiveFunction(j-jw5fun)),Denominator(ProjectiveFunction(j-jw5fun))]>;
+ZZ:=Pullback(jdiff,X1![0,1]);
+ptsZZ:=Setseq(PointsOverSplittingField(ZZ));
+Rng<x,y>:=CoordinateRing(AmbientSpace(X05));
+emb:=map<ZZ->X05 | [x,y]>;
+for P in ptsZZ do
+    assert Degree(ResidueClassField(Place(emb(P)))) eq 2;
+end for;
 
 
-//Input N st X_0(N) is a hyperelliptic modular curve.
-//Currently needs X_0(n) to be P^1, but can easily be extended to general X_0(n).
-MapFromHyperellipticQuotient:=function(N,wlist,n)
+
+//There exists a Magma function ModularCurveQuotient for computing any quotient of a modular curve by Atkin--Lehner involutions.
+//However, we also need q-expansions corresponding to the coordinates. For hyperelliptic curves, these are not just given by cusp forms.
+HyperellipticModularQuotient:=function(N,wlist)
 C:=CuspForms(N);
 ws:=[AtkinLehnerOperator(C,a) : a in wlist];
 NN:=&meet[Nullspace(Matrix(w-1)) : w in ws];
-tf,ell:=IsSquare(Integers()!(N/n));
-assert tf;
 dimC:=Dimension(C);
 dimN:=Dimension(NN);
 den:=LCM(&cat[[Denominator(Eltseq(v)[i]) : i in [1..#Eltseq(v)]] : v in Basis(NN)]);
@@ -17,55 +34,72 @@ L<q>:=LaurentSeriesRing(Rationals(),prec);
 x:=(L!qExpansion(B[#B-1],500))/(L!qExpansion(B[#B],500));
 y:=q*Derivative(x)/(L!qExpansion(B[#B],500));
 d:=2*dimN+2;
- R<[xx]>:=PolynomialRing(Rationals(),2);
+R<[xx]>:=PolynomialRing(Rationals(),2);
 mons:=&cat[Setseq(MonomialsOfDegree(R,e)) : e in [0..d]];
-//mons:=MonomialsOfDegree(R,d);
 m:=#mons;
- k:=prec-100;
+k:=prec-100;
 Zm:=VectorSpace(Rationals(),#mons);
 Zk:=VectorSpace(Rationals(),k+101);
 h:=hom<Zm -> Zk | [[Coefficient(Evaluate(mons[i],[x,y]),j) : j in [-100..k]] : i in [1..m]]>;
 K:=Kernel(h);
-assert Dimension(K) eq 1;
-//The equation we construct from K holds provably as it is the only one.
+assert Dimension(K) eq 1; //The equation we construct from K holds provably as it is the only one.
+//This is not the most efficient way of finding the equation; since we know that such a hyperelliptic equation between x and y exists,
+//we can also remove a multiple of x^d from y^2 to make lowest coefficient in q-exp vanish, then continue with x^(d-1 etc. 
 eqnlist:=Eltseq(Basis(K)[1]);
 den:=LCM([Denominator(aa) : aa in eqnlist]);
 hypeqn:=&+[den*eqnlist[i]*mons[i] : i in [1..#mons]];
+ysqcoeff:=-MonomialCoefficient(hypeqn,xx[2]^2);
+hypeqn:=hypeqn/ysqcoeff;
+assert Evaluate(hypeqn,[0,xx[2]]) eq -xx[2]^2+MonomialCoefficient(hypeqn,1);
 RR<z>:=PolynomialRing(Rationals());
 hypeqn:=Evaluate(hypeqn,[z,0]);
 Y:=HyperellipticCurve(hypeqn);
-F<xx,yy>:=FunctionField(Y);
+return Y,[x,y];
+end function;
 
+//Input N st X_0(N) is a hyperelliptic modular curve.
+//Currently needs X_0(n) to be P^1.
+//wlist is a sequence of integers dividing N maximally, corresponding to Atkin--Lehner operators on X_0(N)
+//In fact we require that the product of the integers in wlist equals N/n and is a square. 
+//We construct the map X_0(N)/ws --> X_0(N) given on q-expansions by q |--> q^l, where l^2=N/n.
+
+MapFromHyperellipticQuotient:=function(N,wlist,n)
+tf,ell:=IsSquare(Integers()!(N/n));
+assert tf;
+prec:=500;
+Y,qexps:=HyperellipticModularQuotient(N,wlist);
+x,y:=Explode(qexps);
+L<q>:=Parent(x);
+F<xx,yy>:=FunctionField(Y);
 Z:=SmallModularCurve(n);
-qE:=qExpansionsOfGenerators(7,L,500)[1];
+qE:=qExpansionsOfGenerators(n,L,prec)[1];
 qE3:=Evaluate(qE,q^(ell));
+
+//We search for polynomials p(x,y) and q(x,y) such that qE3 = p(x,y)/q(x,y), i.e. qE3*q(x,y) = p(x,y)
 tf:=false;
 d:=0;
 while tf eq false do
-d:=d+1;
-d;
- R:=PolynomialRing(Rationals(),2);
-mons:=&cat[Setseq(MonomialsOfDegree(R,e)) : e in [0..d]];
-//mons:=MonomialsOfDegree(R,d);
-m:=#mons;
- k:=prec-100;
- Zk:=FreeAbelianGroup(k);
-Zm:=VectorSpace(Rationals(),(2*#mons));
-Zk:=VectorSpace(Rationals(),k+101);
-h:=hom<Zm -> Zk | [[Coefficient(Evaluate(mons[i],[x,y])*qE3,j) : j in\
- [-100..k]] : i in [1..m]] cat [[Coefficient(Evaluate(-mons[i],[x,y]),j) : j in
- [-100..k]] : i in [1..m]]>;
-K:=Kernel(h);
-for v in Basis(K) do
-if not &+[Eltseq(v)[j] : j in [1..#mons]] eq 0 and not &+[Eltseq(v)[j+#mons] : j in [1..#mons]] eq 0   then
-vseq:=Eltseq(v);
-tf:=true;
-end if; 
-end for;
+    d:=d+1;
+    R:=PolynomialRing(Rationals(),2);
+    mons:=&cat[Setseq(MonomialsOfDegree(R,e)) : e in [0..d]];
+    m:=#mons;
+    k:=prec-100;
+    Zm:=VectorSpace(Rationals(),(2*#mons));
+    Zk:=VectorSpace(Rationals(),k+101);
+    h:=hom<Zm -> Zk | [[Coefficient(Evaluate(mons[i],[x,y])*qE3,j) : j in [-100..k]] : i in [1..m]] cat [[Coefficient(Evaluate(-mons[i],[x,y]),j) : j in [-100..k]] : i in [1..m]]>;
+    K:=Kernel(h);
+    for v in Basis(K) do
+        //We discount solutions where p(x,y)=0 or q(x,y)=0, as they just equations on Y
+        if not &and[Eltseq(v)[j] eq 0 : j in [1..#mons]] and not &and[Eltseq(v)[j+#mons] eq 0 : j in [1..#mons]] then
+            vseq:=Eltseq(v);
+            tf:=true;
+        end if; 
+    end for;
 end while;
 theeqn:=Evaluate(&+[vseq[i+#mons]*mons[i] : i in [1..#mons]],[xx,yy])/Evaluate(&+[vseq[i]*mons[i] : i in [1..#mons]],[xx,yy]);
 thefn:=ProjectiveFunction(theeqn);
 themap:=map<Y->Z | [Numerator(thefn),Denominator(thefn)]>;
+
 deg:=Degree(themap);
 dN:=Integers()!((1/2)*(N^3)*&*[Rationals() | 1-1/p^2 : p in PrimeDivisors(N)]);
 dn:=Integers()!((1/2)*(n^3)*&*[Rationals() | 1-1/p^2 : p in PrimeDivisors(n)]);
@@ -73,217 +107,132 @@ deg2:=Integers()!(dN/(2*dn));
 //qE3 defines a function on Y of degree equal to the degree of Y->Z.
 //theeqn defines such a function of degree deg.
 //Then if unequal, the degree of the difference is at most deg+Degree(qE3).
-assert prec-100 ge deg2+deg; //This proves that the equation for the map holdds.
+assert prec-100 ge deg2+deg; //This proves that the equation for the map holds.
 return themap;
 end function;
 
-XX:=SmallModularCurve(35);
-X,m:=SimplifiedModel(XX);
-Z:=SmallModularCurve(7);
-prX:=ProjectionMap(XX,35,Z,7);
-prX:=Inverse(m)*prX;
-Pt:=PolynomialRing(Rationals(),1);
-K<t>:=FieldOfFractions(Pt);
-R1<u1,v1,w1>:=CoordinateRing(AmbientSpace(X));
-XK:=ChangeRing(X,K);
-RK<u1,v1,w1>:=CoordinateRing(AmbientSpace(XK));
-ZK:=ChangeRing(Z,K);
-prXK:=map<XK->ZK | [Evaluate(defeqn,[u1,v1,w1]) : defeqn in DefiningEquations(prX)]>;
-ptsX:= [ X![1 , 1 , 0], X![1 , -1 , 0], X![0 , -1 , 1], X![0 , 1 , 1]];
-//The cusps of X_0(35).
-D1X:=Place(ptsX[2])-Place(ptsX[1]);
-D2X:=3*Place(ptsX[3])-3*Place(ptsX[1]); 
-infdivX:=2*Place(ptsX[1])+2*Place(ptsX[2]);
-deg4X:=[a*D1X+b*D2X+infdivX : a in [0..23], b in [0..1]];
-prXfun:=DefiningEquations(prX)[1]/DefiningEquations(prX)[2];
-prXfunK:=DefiningEquations(prXK)[1]/DefiningEquations(prXK)[2];
+X035SMC:=SmallModularCurve(35);
+j35SMC:=jFunction(X035SMC,35);
+X035,m:=SimplifiedModel(X035SMC);
+j35:=Pullback(Inverse(m),j35SMC);
+X07:=SmallModularCurve(7);
+pr35to7SMC:=ProjectionMap(X035SMC,35,X07,7);
+pr35to7:=Inverse(m)*pr35to7SMC;
 
-#We now verify that D1X and D2X generate the MW group as claimed.
+ptsX035:= [ X035![1 , 1 , 0], X035![1 , -1 , 0], X035![0 , -1 , 1], X035![0 , 1 , 1]]; //The cusps of X_0(35).
+D1X035:=Place(ptsX035[2])-Place(ptsX035[1]);
+D2X035:=3*Place(ptsX035[3])-3*Place(ptsX035[1]); 
+infdivX035:=2*Place(ptsX035[1])+2*Place(ptsX035[2]);
+deg4X035:=[a*D1X035+b*D2X035+infdivX035 : a in [0..23], b in [0..1]];
+pr35to7fun:=DefiningEquations(pr35to7)[1]/DefiningEquations(pr35to7)[2];
+
+//We now verify that D1X035 and D2X035 generate the MW group as claimed.
 p:=3;
-Xp:=ChangeRing(X,GF(p));
-assert IsSingular(Xp) eq false; // Now we know that J_X(Q)-->J_X(\F_p) is injective (rank 0).
-CG,phi,psi:=ClassGroup(Xp);
+X035p:=ChangeRing(X035,GF(p));
+assert IsSingular(X035p) eq false; // Now we know that J_X(Q)-->J_X(\F_p) is injective (rank 0).
+CG,phi,psi:=ClassGroup(X035p);
 ZZ:=FreeAbelianGroup(1);
-D1X3:=Divisor(Xp![1,-1,0])-Divisor(Xp![1,1,0]);
-D2X3:=3*Divisor(Xp![0,-1,1])-3*Divisor(Xp![1,1,0]);
+D1X035mod3:=Divisor(X035p![1,-1,0])-Divisor(X035p![1,1,0]);
+D2X035mod3:=3*Divisor(X035p![0,-1,1])-3*Divisor(X035p![1,1,0]);
 degr:=hom<CG->ZZ | [ Degree(phi(a))*ZZ.1 : a in OrderedGenerators(CG)]>;
-JXF3:=Kernel(degr); // This is isomorphic to J_X(\F_p).
-assert IsIsomorphic(JXF3,AbelianGroup([2,24]));
-assert sub<JXF3 | [psi(D1X3),psi(D2X3)]> eq JXF3;
-assert Order(psi(D1X3)) eq 24;
-assert Order(psi(D2X3)) eq 2;
+JX035F3:=Kernel(degr); // This is isomorphic to J_X(\F_p).
+assert IsIsomorphic(JX035F3,AbelianGroup([2,24]));
+assert sub<JX035F3 | [psi(D1X035mod3),psi(D2X035mod3)]> eq JX035F3;
+assert Order(psi(D1X035mod3)) eq 24;
+assert Order(psi(D2X035mod3)) eq 2;
 
-#We check that all found rational points are cusps.
-cusps7:=&cat[CuspPlaces(Z,7,d) : d in Divisors(7)];
-assert cusps7 eq [Place(Z![0,1]),Place(Z![1,0])];
-assert {Place(prX(P)) : P in ptsX} eq Seqset(cusps7); //So ptsX is the set of cusps on X
+//We check that all found rational points are cusps.
+cusps7:=&cat[CuspPlaces(X07,7,d) : d in Divisors(7)];
+assert cusps7 eq [Place(X07![0,1]),Place(X07![1,0])];
+assert {Place(pr35to7(P)) : P in ptsX035} eq Seqset(cusps7); //So ptsX is the set of cusps on X
 
-themap:=MapFromHyperellipticQuotient(63,[9],7); //The map X_0(63)/w_9 --> X_0(7)
-Y:=Domain(themap);
-themap:=map<Y -> Z | DefiningEquations(themap)>;
-Ps:=PolynomialRing(Rationals(),1);
-L<s>:=FieldOfFractions(Ps);
-YL:=ChangeRing(Y,L);
-ZL:=ChangeRing(Z,L);
-R2<u2,v2,w2>:=CoordinateRing(AmbientSpace(Y));
-RL<u2,v2,w2>:=CoordinateRing(AmbientSpace(YL));
-themapL:=map<YL -> ZL | [Evaluate(defeqn,[u2,v2,w2]) : defeqn in DefiningEquations(themap)]>;
-ptsY:=Points(Y : Bound:=100);
-D1Y:=-9*(Place(ptsY[2])-Place(ptsY[1]))+Place(ptsY[4])-Place(ptsY[1]);
-D2Y:=2*(Place(ptsY[2])-Place(ptsY[1]))+Place(ptsY[4])-Place(ptsY[1]);
-infdivY:=2*Place(ptsY[1])+2*Place(ptsY[2]);
-deg4Y:=[a*D1Y+b*D2Y+infdivY : a in [0..1], b in [0..23]];
-prYfun:=DefiningEquations(themap)[1]/DefiningEquations(themap)[2];
-prYfunL:=DefiningEquations(themapL)[1]/DefiningEquations(themapL)[2];
+prs3b7to7:=MapFromHyperellipticQuotient(63,[9],7); //The map X_0(63)/w_9 --> X_0(7)
+Xs3b7:=Domain(prs3b7to7);
+prs3b7to7:=map<Xs3b7 -> X07 | DefiningEquations(prs3b7to7)>;  //We set X07 as codomain
+ptsXs3b7:=Points(Xs3b7 : Bound:=100);
+D1Xs3b7:=-9*(Place(ptsXs3b7[2])-Place(ptsXs3b7[1]))+Place(ptsXs3b7[4])-Place(ptsXs3b7[1]);
+D2Xs3b7:=2*(Place(ptsXs3b7[2])-Place(ptsXs3b7[1]))+Place(ptsXs3b7[4])-Place(ptsXs3b7[1]);
+infdivXs3b7:=2*Place(ptsXs3b7[1])+2*Place(ptsXs3b7[2]);
+deg4Xs3b7:=[a*D1Xs3b7+b*D2Xs3b7+infdivXs3b7 : a in [0..1], b in [0..23]];
+prs3b7to7fun:=DefiningEquations(prs3b7to7)[1]/DefiningEquations(prs3b7to7)[2];
 
-//We check that D1Y and D2Y indeed generate the Mordell--Weil group
+//We check that D1Xs3b7 and D2Xs3b7 indeed generate the Mordell--Weil group
 p:=5;
-Yp:=ChangeRing(Y,GF(p));
-assert IsSingular(Yp) eq false; // Now we know that J_X(Q)-->J_X(\F_p) is injective (rank 0).
-CC,phi,psi:=ClassGroup(Yp);
-ZZ:=FreeAbelianGroup(1);
+Xs3b7p:=ChangeRing(Xs3b7,GF(p));
+assert IsSingular(Xs3b7p) eq false; // Now we know that J_X(Q)-->J_X(\F_p) is injective (rank 0).
+CC,phi,psi:=ClassGroup(Xs3b7p);
 degr:=hom<CC->ZZ | [ Degree(phi(a))*ZZ.1 : a in OrderedGenerators(CC)]>;
-JYF5:=Kernel(degr); // This is isomorphic to J_X(\F_p).
-assert IsIsomorphic(JYF5,AbelianGroup([2,2,2,24]));
-D1Y5:=-9*(Divisor(Yp!Eltseq(ptsY[2]))-Divisor(Yp!Eltseq(ptsY[1])))+Divisor(Yp!Eltseq(ptsY[4]))-Divisor(Yp!Eltseq(ptsY[1]));
-D2Y5:=2*(Divisor(Yp!Eltseq(ptsY[2]))-Divisor(Yp!Eltseq(ptsY[1])))+Divisor(Yp!Eltseq(ptsY[4]))-Divisor(Yp!Eltseq(ptsY[1]));
-assert IsIsomorphic(sub<JYF5 | [psi(D1Y5),psi(D2Y5)]>,AbelianGroup([2,24])); //So D1Y,D2Y generate a subgroup isom. to Z/2Z x Z/24Z
-assert Order(psi(D1Y5)) eq 2;
-assert Order(psi(D2Y5)) eq 24;
+JXs3b7F5:=Kernel(degr); // This is isomorphic to J_X(\F_p).
+assert IsIsomorphic(JXs3b7F5,AbelianGroup([2,2,2,24]));
+D1Xs3b7mod5:=-9*(Divisor(Xs3b7p!Eltseq(ptsXs3b7[2]))-Divisor(Xs3b7p!Eltseq(ptsXs3b7[1])))+Divisor(Xs3b7p!Eltseq(ptsXs3b7[4]))-Divisor(Xs3b7p!Eltseq(ptsXs3b7[1]));
+D2Xs3b7mod5:=2*(Divisor(Xs3b7p!Eltseq(ptsXs3b7[2]))-Divisor(Xs3b7p!Eltseq(ptsXs3b7[1])))+Divisor(Xs3b7p!Eltseq(ptsXs3b7[4]))-Divisor(Xs3b7p!Eltseq(ptsXs3b7[1]));
+assert IsIsomorphic(sub<JXs3b7F5 | [psi(D1Xs3b7mod5),psi(D2Xs3b7mod5)]>,AbelianGroup([2,24])); //So D1Xs3b7,D2Xs3b7 generate a subgroup isom. to Z/2Z x Z/24Z
+assert Order(psi(D1Xs3b7mod5)) eq 2;
+assert Order(psi(D2Xs3b7mod5)) eq 24;
 p:=11;
-Yp:=ChangeRing(Y,GF(p));
-assert IsSingular(Yp) eq false; // Now we know that J_X(Q)-->J_X(\F_p) is injective (rank 0).
-CC,phi,psi:=ClassGroup(Yp);
-ZZ:=FreeAbelianGroup(1);
+Xs3b7p:=ChangeRing(Xs3b7,GF(p));
+assert IsSingular(Xs3b7p) eq false; // Now we know that J_X(Q)-->J_X(\F_p) is injective (rank 0).
+CC,phi,psi:=ClassGroup(Xs3b7p);
 degr:=hom<CC->ZZ | [ Degree(phi(a))*ZZ.1 : a in OrderedGenerators(CC)]>;
-JYF11:=Kernel(degr); // This is isomorphic to J_X(\F_p).
-assert IsIsomorphic(JYF11,AbelianGroup([4,264]));
-//JYF11 and JYF5 together show that J(Y)(Q) = Z/2Z D1Y x Z/24Z D2Y = 
+JXs3b7F11:=Kernel(degr); // This is isomorphic to J_X(\F_p).
+assert IsIsomorphic(JXs3b7F11,AbelianGroup([4,264]));
+//JXs3b7F11 and JXs3b7F5 together show that J(Xs3b7)(Q) = Z/2Z D1Xs3b7 x Z/24Z D2Xs3b7 = 
 
-//We check that the found rational points on Y indeed are the cusps.
-assert {Place(themap(P)) : P in ptsY} eq Seqset(cusps7); //So ptsY is the set of cusps on Y
+//We check that the found rational points on Xs3b7 indeed are the cusps.
+assert {Place(prs3b7to7(P)) : P in ptsXs3b7} eq Seqset(cusps7); //So ptsY is the set of cusps on Y
 
-
-/* Y:=SmallModularCurve(21);
-themap:=ProjectionMap(Y,21,Z,7);
-pt1:=Y![-2,1,1];
-pt2:=Y![-1,-1,1];
-infdivY:=4*Place(Zero(Y));
-D1Y:=Place(pt1)-Place(Zero(Y));
-D2Y:=Place(pt2)-Place(Zero(Y));
-deg4Y:=[a*D1Y+b*D2Y+infdivY : a in [0..1], b in [0..3]];
-prYfun:=DefiningEquations(themap)[1]/DefiningEquations(themap)[2]; */
+//We study the automorphism group. We know of two involutions: w_7 and phi_3 (the inv. inducing X(s3,b7) --> X(ns3,b7)). 
+assert #AutomorphismGroup(Xs3b7) eq 4;
+assert &and[Order(g) in [1,2] : g in AutomorphismGroup(Xs3b7)]; //So AutomorphismGroup(Xs3b7) = Z/2Z x Z/2Z
+//So the automorphisms are w_7, phi_3, w_7*phi_3 and Id. We know that X(ns3,b7) has genus 2 by Le Hung. 
+assert Genus(ModularCurveQuotient(63,[7,9])) eq 1; //So we must have phi_3*w_7 = hyperelliptic involution
 
 
-
-DoTheyLift:=function(D1,D2)
-F1<x1,y1>:=FunctionField(X);
-F2<x2,y2>:=FunctionField(Y);
-FK1<x1,y1>:=FunctionField(XK);
-FL2<x2,y2>:=FunctionField(YL);
-V1,phi1:=RiemannRochSpace(D1);
-V2,phi2:=RiemannRochSpace(D2);
-assert &and[Dimension(V1) eq 2,Dimension(V2) eq 2];
-R1<u1,v1,w1>:=CoordinateRing(AmbientSpace(X));
-R2<u2,v2,w2>:=CoordinateRing(AmbientSpace(Y));
-RK<u1,v1,w1>:=CoordinateRing(AmbientSpace(XK));
-RL<u2,v2,w2>:=CoordinateRing(AmbientSpace(YL));
-//Giving the same names to variables in the right order allows us to 
-//cheat and define things in a shorter way.
-I1:=Ideal(D1+Divisor(phi1(V1.1))); 
-I2:=Ideal(D2+Divisor(phi2(V2.1)));
-ID1:=ideal<RK | [Evaluate(gg,[u1,v1,w1]) : gg in Basis(I1)]>; 
-ID2:=ideal<RL | [Evaluate(ff,[u2,v2,w2]) : ff in Basis(I2)]>; //Cheating here
-F1A,tr:=AlgorithmicFunctionField(F1);
-F1AK,trK:=AlgorithmicFunctionField(FK1);
-hh1:=hom<F1A -> F1AK | F1AK.1>;
-f1:=phi1(V1.2)/phi1(V1.1);
-f1K:=Inverse(trK)(hh1(tr(f1)));
-D1t:=Divisor(XK,ID1)+Divisor(t+f1K);
-decD1t:=Decomposition(D1t);
-//We added the divisor of phi1(V1.1) to make D1 effective,
-//so now the R-R space is generated by 1 and f1.
-F2A,tr:=AlgorithmicFunctionField(F2);
-F2AL,trL:=AlgorithmicFunctionField(FL2);
-hh2:=hom<F2A -> F2AL | F2AL.1>;
-f2:=phi2(V2.2)/phi2(V2.1);
-f2L:=Inverse(trL)(hh2(tr(f2)));
-D2s:=Divisor(YL,ID2)+Divisor(s+f2L);
-decD2s:=Decomposition(D2s);
-for i in [1..#decD1t] do
-    if prXK(RepresentativePoint(decD1t[i][1])) in [ZK![1,0],ZK![0,1]] then return [],[];
-    end if;
-end for;
-for i in [1..#decD2s] do
-    if themapL(RepresentativePoint(decD2s[i][1])) in [ZL![1,0],ZL![0,1]] then return [],[];
-    end if;
-end for; //If a point maps to a cusp in X_0(7) then it must have been cusp itself.
-//As the cusps of X_0(7) are rational, this means that if the pair of effective degree 4 divisors is the 
-//image of the Galois orbit of a degree 4 point on X_0(315)/w9 then this was a cuspidal orbit.
-mp1:=&*[MinimalPolynomial(Evaluate(FK1!prXfunK,decD1t[i][1]))^(decD1t[i][2]) : i in [1..#decD1t]];
-mp2:=&*[MinimalPolynomial(Evaluate(FL2!prYfunL,decD2s[i][1]))^(decD2s[i][2]) : i in [1..#decD2s]];
-assert &and[Degree(mp1) eq 4,Degree(mp2) eq 4];
-cfs1:=Coefficients(mp1);
-cfs2:=Coefficients(mp2);
-P1xP1<t1,t2,s1,s2>:=ProductProjectiveSpace(Rationals(),[1,1]);
-CR:=CoordinateRing(P1xP1);
-Pth,ft:=Homogenization(Pt,false);
-Psh,fs:=Homogenization(Ps,false);
-int:=hom<Pth -> CR | [t1,t2]>;
-ins:=hom<Psh -> CR | [s1,s2]>;
-eqns:=[];
-denoms:=[]; numscc:=[];
-for i in [1..#cfs1] do
-degdif1:=Degree(Numerator(cfs1[i]))-Degree(Denominator(cfs1[i]));
-degdif2:=Degree(Numerator(cfs2[i]))-Degree(Denominator(cfs2[i]));
-if degdif1 ge 0 then
-    num1:=ft(Numerator(cfs1[i]));
-    denom1:=Pth.2^(degdif1)*ft(Denominator(cfs1[i]));
-else num1:=Pth.2^(-degdif1)*ft(Numerator(cfs1[i]));
-    denom1:=ft(Denominator(cfs1[i]));
+//Input: dec=Decomposition(D), where D is a divisor of degree 4
+//f is the function Curve(D) -> P^1 as element in the function field of Curve(D)
+//Returns the coefficients of the degree 4 equation defining the divisor f_*D, with 
+PushFwdToP1:=function(dec,f)
+mp:=&*[MinimalPolynomial(Evaluate(f,dec[i][1]))^(dec[i][2]) : i in [1..#dec]];
+//Normally, mp would be the minimal polynomial.
+//However, Magma sometimes views the field in which f(dec[i][1]) lies as a tower of two degree 2 extensions. Since the Magma function AbsoluteField() does not work on such fields, we find the minimal polynomial manually.
+assert Degree(mp) in [2,4];
+if Degree(mp) eq 2 then
+    assert &or[Degree(MinimalPolynomial(c)) gt 1 : c in Coefficients(mp)]; //This verifies that the coefficients of mp are not defined over the right field.
+    xx:=Evaluate(f,dec[1][1]); //This problem only occurs when #dec = 1, else mp is a product of two deg 2 polynomials and there is no tower.
+    assert #dec eq 1; //We doublecheck this.
+    a3:=-Trace(Trace(xx));
+    a0:=Norm(Norm(xx));
+    a2:=Norm(Trace(xx))+Trace(Norm(xx));
+    a1:=BaseRing(Curve(dec[1][1]))!(-(xx^4+a3*xx^3+a2*xx^2+a0)/xx);
+    cfs:=[a0,a1,a2,a3,1];
+else cfs:=Coefficients(mp);
 end if;
-if degdif2 ge 0 then
-    num2:=fs(Numerator(cfs2[i]));
-    denom2:=Psh.2^(degdif2)*fs(Denominator(cfs2[i]));
-else num2:=Psh.2^(-degdif2)*fs(Numerator(cfs2[i]));
-    denom2:=fs(Denominator(cfs2[i]));
-end if;
-Append(~eqns,int(num1)*ins(denom2)-ins(num2)*int(denom1));
-Append(~denoms,int(denom1));
-Append(~denoms,ins(denom2));
-if i eq 1 then Append(~numscc,int(num1));
-Append(~numscc,ins(num2));
-end if; //The numerators of the constant coefficients on the minpols.
-end for;
-//eqns:=[int(ft(Numerator(cfs1[i])))*ins(fs(Denominator(cfs2[i])))-ins(fs(Numerator(cfs2[i])))*int(ft(Denominator(cfs1[i]))) : i in [1..#cfs1]];
-sols:=Scheme(P1xP1,eqns);
-assert Dimension(sols) le 0;
-pointlist1:=[]; pointlist2:=[];
-if Dimension(sols) eq -1 then
-return pointlist1,pointlist2;
-else pts:=RationalPoints(sols);
-pts:=[pt : pt in pts | &and[not Evaluate(denom,Eltseq(pt)) eq 0 : denom in denoms]];
-pts:=[pt : pt in pts | &and[not Evaluate(num,Eltseq(pt)) eq 0 : num in numscc]];
-//We remove the points where the minpol has an infinite coefficient, meaning it corresponds
-//to some effective degree 4 divisor of which one component lies above the infinity cusp of X_0(7).
-//We also remove the points where the minpol has zero constant coefficient. These correspond to
-//eff deg 4 divisors of which one component is mapped to [0,1] in X_0(7) (which is the other cusp).
-for pt in pts do
-if not pt[2] eq 0 then
-Append(~pointlist1,Decomposition(Divisor(X,I1)+Divisor(pt[1]/pt[2]+f1)));
-else Append(~pointlist1, Decomposition(Divisor(X,I1)));
-end if;
-if not pt[4] eq 0 then
-Append(~pointlist2,Decomposition(Divisor(Y,I2)+Divisor(pt[3]/pt[4]+f2)));
-else Append(~pointlist2,Decomposition(Divisor(Y,I2)));
-end if;
-end for;
-return pointlist1,pointlist2; end if;
-//Returns parallel lists such that (pointlist1[i],pointlist2[i]) corresponds to a pair
-//degree 4 effective divisors on X and Y mapping to the same divisor on Z.
+assert #cfs eq 5;
+return cfs;
 end function;
 
-DoTheyLift2:=function(D1,D2)
+//We doublecheck correctness of this function in an example
+Q5:=QuadraticField(5);
+Pex<x>:=PolynomialRing(Q5);
+Q57:=NumberField(x^2-7); //This field is now saved as a degree 2 extension of Q5
+A<x>:=AffineSpace(Q57,1);
+a:=Q5.1+Q57.1; //rt5 + rt7
+assert Degree(MinimalPolynomial(a)) eq 2; 
+assert Degree(MinimalPolynomial(AbsoluteField(Q57)!a)) eq 4;
+assert Coefficients(MinimalPolynomial(AbsoluteField(Q57)!a)) eq PushFwdToP1(Decomposition(1*Place(A(Q57)![a])),FunctionField(A)!x);
+
+
+//Input: a degree 4 divisor D1 on a curve X, and a degree 4 divisor D2 on a curve Y
+//Only implemented for the case where X,Y are hyperelliptic.
+//Also input: maps prX: X --> P^1 and prY: Y --> P^1
+//Finds pairs (P,Q) of quartic points on X and Y such that their degree 4 divisors are linearly
+//equivalent to D1 and D2 respectively and such that prX(P)=prY(Q), and such that moreover prX(P) has degree 4 (not smaller).
+
+FindLiftsInClass:=function(D1,prX,D2,prY)
+X:=Curve(D1);
+Y:=Curve(D2);
+Z:=Codomain(prX);
+assert Z eq Codomain(prY);
 F1<x1,y1>:=FunctionField(X);
 F2<x2,y2>:=FunctionField(Y);
 V1,phi1:=RiemannRochSpace(D1);
@@ -307,24 +256,20 @@ FL2<x2,y2>:=FunctionField(YL);
 defmapK:=[Evaluate(defeqn,[u1,v1,w1]) : defeqn in DefiningEquations(prX)];
 prXK:=map<XK->ZK | defmapK>;
 prXfunK:=defmapK[1]/defmapK[2];
-defmapL:=[Evaluate(defeqn,[u2,v2,w2]) : defeqn in DefiningEquations(themap)];
-themapL:=map<YL -> ZL | defmapL>;
+defmapL:=[Evaluate(defeqn,[u2,v2,w2]) : defeqn in DefiningEquations(prY)];
+prYL:=map<YL -> ZL | defmapL>;
 prYfunL:=defmapL[1]/defmapL[2];
-//Giving the same names to variables in the right order allows us to 
-//cheat and define things in a shorter way.
 I1:=Ideal(D1+Divisor(phi1(V1.1))); 
 I2:=Ideal(D2+Divisor(phi2(V2.1))); //We translate to an effective divisor so we can use ideals.
 ID1:=ideal<RK | [Evaluate(gg,[u1,v1,w1]) : gg in Basis(I1)]>; 
 ID2:=ideal<RL | [Evaluate(ff,[u2,v2,w2]) : ff in Basis(I2)]>; //Cheating here
 F1A,tr:=AlgorithmicFunctionField(F1);
 F1AK,trK:=AlgorithmicFunctionField(FK1);
-hh1:=hom<F1A -> F1AK | F1AK.1>;
+hh1:=hom<F1A -> F1AK | F1AK.1>; //This is base change to K
 f1list:=[phi1(V1.i)/phi1(V1.1) : i in [1..dim1]];
-f1Klist:=[Inverse(trK)(hh1(tr(f1))) : f1 in f1list];
-D1t:=Divisor(XK,ID1)+Divisor(&+([0] cat [t[i]*f1Klist[i] : i in [1..#f1Klist]]));
+f1Klist:=[Inverse(trK)(hh1(tr(f1))) : f1 in f1list]; //The base changed R--R functions for D1+Divisor(phi1(V1.1))
+D1t:=Divisor(XK,ID1)+Divisor(&+([0] cat [t[i]*f1Klist[i] : i in [1..#f1Klist]])); //A generic effective divisor lin. equiv. to D1
 decD1t:=Decomposition(D1t);
-//We added the divisor of phi1(V1.1) to make D1 effective,
-//so now the R-R space is generated by 1 and the functions in f1list.
 F2A,tr:=AlgorithmicFunctionField(F2);
 F2AL,trL:=AlgorithmicFunctionField(FL2);
 hh2:=hom<F2A -> F2AL | F2AL.1>;
@@ -332,76 +277,32 @@ f2list:=[phi2(V2.i)/phi2(V2.1) : i in [1..dim2]];
 f2Llist:=[Inverse(trL)(hh2(tr(f2))) : f2 in f2list];
 D2s:=Divisor(YL,ID2)+Divisor(&+([0] cat [s[i]*f2Llist[i] : i in [1..#f2Llist]]));
 decD2s:=Decomposition(D2s);
+
 for i in [1..#decD1t] do
     if prXK(RepresentativePoint(decD1t[i][1])) in [ZK![1,0],ZK![0,1]] then return [],[];
     end if;
 end for;
 for i in [1..#decD2s] do
-    if themapL(RepresentativePoint(decD2s[i][1])) in [ZL![1,0],ZL![0,1]] then return [],[];
+    if prYL(RepresentativePoint(decD2s[i][1])) in [ZL![1,0],ZL![0,1]] then return [],[];
     end if;
-end for; //If a point maps to a cusp in X_0(7) then it must have been cusp itself.
-//As the cusps of X_0(7) are rational, this means that if the pair of effective degree 4 divisors is the 
-//image of the Galois orbit of a degree 4 point on X_0(315)/w9 then this was a cuspidal orbit.
-mp1:=&*[MinimalPolynomial(Evaluate(FK1!prXfunK,decD1t[i][1]))^(decD1t[i][2]) : i in [1..#decD1t]];
-mp2:=&*[MinimalPolynomial(Evaluate(FL2!prYfunL,decD2s[i][1]))^(decD2s[i][2]) : i in [1..#decD2s]];
-if Degree(mp1) eq 2 then
-    xx:=Evaluate(FK1!prXfunK,decD1t[1][1]);
- a3:=-Trace(Trace(xx));
- a0:=Norm(Norm(xx));
- a2:=Norm(Trace(xx))+Trace(Norm(xx));
- a1:=K!(-(xx^4+a3*xx^3+a2*xx^2+a0)/xx);
- cfs1:=[a0,a1,a2,a3,1];
-else
-cfs1:=Coefficients(mp1);
-end if;
-if Degree(mp2) eq 2 then
-    xx:=Evaluate(FL2!prYfunL,decD2s[1][1]);
- a3:=-Trace(Trace(xx));
- a0:=Norm(Norm(xx));
- a2:=Norm(Trace(xx))+Trace(Norm(xx));
- a1:=L!(-(xx^4+a3*xx^3+a2*xx^2+a0)/xx);
- cfs2:=[a0,a1,a2,a3,1];
-elif Degree(mp2) eq 1 then
-    cfs2:=[Coefficients(mp2)[1]] cat [0,0,0,1];
-else
-cfs2:=Coefficients(mp2);
-end if;
-PxP<[ts]>:=ProductProjectiveSpace(Rationals(),[dim1-1,dim2-1]);
+end for; //If a point has rational image in X_0(7), its j-invariant is rational. Moreover, these are the cusps.
+
+//We compute coefficients of the degree 4 equation satisfied by the pushforwards
+cfs1:=PushFwdToP1(decD1t,FK1!prXfunK);
+cfs2:=PushFwdToP1(decD2s,FL2!prYfunL);
+
+PxP<[ts]>:=ProductProjectiveSpace(Rationals(),[dim1-1,dim2-1]); //The ambient space of the solution set
 CR:=CoordinateRing(PxP);
-/*Pth,ft:=Homogenization(Pt,false);
-Psh,fs:=Homogenization(Ps,false);
-int:=hom<Pth -> CR | [ts[i] : i in [1..dim1]]>;
-ins:=hom<Psh -> CR | [ts[i] : i in [dim1+1..dim1+dim2]]>;*/
 int:=hom<Pt -> CR | [ts[i] : i in [1..dim1]]>;
 ins:=hom<Ps -> CR | [ts[i] : i in [dim1+1..dim1+dim2]]>;
 eqns:=[];
 denoms:=[]; numscc:=[];
-/*for i in [1..#cfs1] do
-degdif1:=Degree(Numerator(cfs1[i]))-Degree(Denominator(cfs1[i]));
-degdif2:=Degree(Numerator(cfs2[i]))-Degree(Denominator(cfs2[i]));
-if degdif1 ge 0 then
-    num1:=ft(Numerator(cfs1[i]));
-    denom1:=(Pth.(dim1))^(degdif1)*ft(Denominator(cfs1[i]));
-else num1:=(Pth.(dim1))^(-degdif1)*ft(Numerator(cfs1[i]));
-    denom1:=ft(Denominator(cfs1[i]));
-end if;
-if degdif2 ge 0 then
-    num2:=fs(Numerator(cfs2[i]));
-    denom2:=(Psh.(dim2))^(degdif2)*fs(Denominator(cfs2[i]));
-else num2:=(Psh.(dim2))^(-degdif2)*fs(Numerator(cfs2[i]));
-    denom2:=fs(Denominator(cfs2[i]));
-end if;
-Append(~eqns,int(num1)*ins(denom2)-ins(num2)*int(denom1));
-Append(~denoms,int(denom1));
-Append(~denoms,ins(denom2));
-if i eq 1 then Append(~numscc,int(num1));
-Append(~numscc,ins(num2));
-end if; //The numerators of the constant coefficients on the minpols.
-end for; */
-dens:=[int(Denominator(c)) : c in cfs1] cat [ins(Denominator(c)) : c in cfs2];
+
+dens:=[int(Denominator(c)) : c in cfs1] cat [ins(Denominator(c)) : c in cfs2]; //Denominators
 numscc:=[int(Numerator(cfs1[1])),ins(Numerator(cfs2[1]))];
 eqns:=[int(Numerator(cfs1[i]))*ins(Denominator(cfs2[i]))-int(Denominator(cfs1[i]))*ins(Numerator(cfs2[i])) : i in [1..#cfs1]];
-//eqns:=[int(ft(Numerator(cfs1[i])))*ins(fs(Denominator(cfs2[i])))-ins(fs(Numerator(cfs2[i])))*int(ft(Denominator(cfs1[i]))) : i in [1..#cfs1]];
+//These are the polynomial equations satisfied by t and s. 
+
 sols:=Scheme(PxP,eqns);
 pts:=[];
 for A in [AffinePatch(sols,i) : i in [1..NumberOfAffinePatches(sols)]] do
@@ -409,111 +310,66 @@ for A in [AffinePatch(sols,i) : i in [1..NumberOfAffinePatches(sols)]] do
         if Dimension(A) le 0 then
             pts:=pts cat [sols!phi(pt) : pt in RationalPoints(A)];
         else assert Dimension(A) eq 1;
-        irs:=IrreducibleComponents(A);
-        for ir in irs do
-            if Dimension(ir) le 0 then
-                pts:=pts cat [sols!phi(pt) : pt in RationalPoints(ir)];
-            else Irad:=Radical(Ideal(phi(ir)));
-                assert &or[den in Irad : den in dens]; //This means that the divisors corresponding to solutions must contain a cuspplace.
-            end if;
-        end for;
+            irs:=IrreducibleComponents(A);
+            for ir in irs do
+                if Dimension(ir) le 0 then
+                    pts:=pts cat [sols!phi(pt) : pt in RationalPoints(ir)];
+                else Irad:=Radical(Ideal(phi(ir)));
+                    assert &or[den in Irad : den in dens]; //This means that the points corresponding to solutions in ir are quadratic or rational on X_0(7).
+                     //Combinations of pts P1 on X and P2 on Y giving vanishing denominators of coefficients of the pushforwards, are always counted as solutions (regardless of whether prX(P1)=prY(P2)), which is why 1-dimensional components occur. We can safely disregard these.
+                end if;
+            end for;
         end if;
 end for;
 pointlist1:=[];
 pointlist2:=[];
-/*dimsols:=Dimension(sols);
-if dimsols gt 1 then return sols; end if;
-assert dimsols le 0;
-pointlist1:=[]; pointlist2:=[];
-if dimsols eq -1 then
-return pointlist1,pointlist2;
-elif dimsols eq 1 then
-    return sols;    
-elif dimsols eq 0 then 
-if dim1 eq 2 and dim2 eq 2 then
-    pts:=RationalPoints(sols);
-else
-    pts:=[];
-    for A in [AffinePatch(sols,i) : i in [1..NumberOfAffinePatches(sols)]] do
-        phi:=ProjectiveClosureMap(AmbientSpace(A));
-        pts:=pts cat [sols!phi(pt) : pt in RationalPoints(A)];
-    end for;
-end if;*/
 
-pts:={pt : pt in pts | &and[not Evaluate(denom,Eltseq(pt)) eq 0 : denom in dens]};
-pts:=[pt : pt in pts | &and[not Evaluate(num,Eltseq(pt)) eq 0 : num in numscc]];
-//We remove the points where the minpol has an infinite coefficient, meaning it corresponds
-//to some effective degree 4 divisor of which one component lies above the infinity cusp of X_0(7).
-//We also remove the points where the minpol has zero constant coefficient. These correspond to
-//eff deg 4 divisors of which one component is mapped to [0,1] in X_0(7) (which is the other cusp).
+pts:={pt : pt in pts | &and[not Evaluate(denom,Eltseq(pt)) eq 0 : denom in dens]}; //As before, we can safely disregard these points.
+//pts:=[pt : pt in pts | &and[not Evaluate(num,Eltseq(pt)) eq 0 : num in numscc]];
+//Similarly, we remove the points where the constant coefficient of the minpol vanishes. 
 for pt in pts do
-d1:=Decomposition(Divisor(X,I1)+Divisor(&+([0] cat [pt[i]*f1list[i] : i in [1..#f1list]])));
-d2:=Decomposition(Divisor(Y,I2)+Divisor(&+([0] cat [pt[i+dim1]*f2list[i] : i in [1..#f2list]])));
-if [#d1,#d2,d1[1][2],d2[1][2]] eq [1,1,1,1] and IsIsomorphic(AbsoluteField(ResidueClassField(d1[1][1])),AbsoluteField(ResidueClassField(d2[1][1]))) then
-assert not IsTotallyReal(ResidueClassField(d1[1][1]));
-Append(~pointlist1,d1);
-Append(~pointlist2,d2);
-end if;
+    div1:=Divisor(X,I1)+Divisor(&+([0] cat [pt[i]*f1list[i] : i in [1..#f1list]]));
+    div2:=Divisor(Y,I2)+Divisor(&+([0] cat [pt[i+dim1]*f2list[i] : i in [1..#f2list]]));
+    assert &and[IsEffective(div1),IsEffective(div2)];
+    d1:=Decomposition(div1);
+    d2:=Decomposition(div2);
+    //We translate solutions to divisors on X_0(35) and X(s3,b7), only counting those corresponding to quartic points and where fields of definition match.
+    if [#d1,#d2,d1[1][2],d2[1][2]] eq [1,1,1,1] and IsIsomorphic(AbsoluteField(ResidueClassField(d1[1][1])),AbsoluteField(ResidueClassField(d2[1][1]))) then
+        Append(~pointlist1,d1[1][1]);
+        Append(~pointlist2,d2[1][1]);
+    end if;
 end for;
-/*
-for pt in pts do
-if not pt[dim1] eq 0 then
-Append(~pointlist1,Decomposition(Divisor(X,I1)+Divisor(pt[1]/pt[dim1]+&+([0] cat [pt[i]/pt[dim1]*f1list[i] : i in [2..#f1Klist]])+f1list[#f1list])));
-else Append(~pointlist1, Decomposition(Divisor(X,I1)+Divisor(pt[1]/pt[dim1]+&+([0] cat [pt[i]/pt[dim1]*f1list[i] : i in [2..#f1Klist]]))));
-end if;
-if not pt[dim1+dim2] eq 0 then
-Append(~pointlist2,Decomposition(Divisor(Y,I2)+Divisor(pt[dim1+1]/pt[dim2+dim1]+&+([0] cat [pt[i]/pt[dim1]*f1list[i] : i in [2..#f1Klist]])+f2list[#f2list])));
-else Append(~pointlist2,Decomposition(Divisor(Y,I2)+Divisor(pt[dim1+1]/pt[dim2+dim1]+&+([0] cat [pt[i]/pt[dim1]*f1list[i] : i in [2..#f1Klist]]))));
-end if;
-end for;*/
+
 return pointlist1,pointlist2; 
 //Returns parallel lists such that (pointlist1[i],pointlist2[i]) corresponds to a pair
 //degree 4 effective divisors on X and Y mapping to the same divisor on Z.
 end function;
 
-
-
-ptlist1:=[];
-ptlist2:=[];
-for D1 in [deg4X[i] : i in [2..#deg4X]] do
-    for D2 in [deg4Y[i] : i in [2..#deg4Y]] do
-        pointlist1,pointlist2:=DoTheyLift(D1,D2);
-     Append(~ptlist1,pointlist1);
-     Append(~pointlist2,ptlist2);
-end for; end for;
-//The above shows that all degree 4 points on the two curves with the same image in X_0(7) are either biquadratic (in the class of deg4X[1] or deg4Y[1]) or not totally real (the other solution).
-
-for i in [1..#deg4X] do
-   for j in [1..#deg4Y] do
+//For each combination except (deg4X[1],deg4X[2]) we run FindLiftsInClass to find possible quartic points.
+//This takes a while.
+foundpts1:=[];
+foundpts2:=[];
+for i in [1..#deg4X035] do
+   for j in [1..#deg4Xs3b7] do
      if not [i,j] eq [1,1] then
-       pl1,pl2:=DoTheyLift2(deg4X[i],deg4Y[j]);
-       if not pl1 eq [] then
-         [i,j];
-         pl1;
-         pl2;
-         end if;
-       end if;
-     end for;
+        pl1,pl2:=FindLiftsInClass(deg4X035[i],pr35to7,deg4Xs3b7[j],prs3b7to7);
+        if not pl1 eq [] then
+            foundpts1:=foundpts1 cat pl1;
+            foundpts2:=foundpts2 cat pl2;
+        end if;
+     end if;
    end for;
-//This one will give a few solutions, but no error which means none of the solutions are totally real, and hence shows that there are no degree 4 points on X_0(315)/w9 that are 
-//totally real and correspond to non-modular elliptic curves. Indeed, the points corresponding to the pair of classes (deg4X[1],deg4Y[1]) are Q-curves and hence modular.
-
-//Finally we check that no quartic points Q on X_0(5) satisfy j(Q) = j(w5(Q)).
-X05:=SmallModularCurve(5);
-w5:=AtkinLehnerInvolution(X05,5,5);
-j:=jFunction(X05,5);
-X1:=Curve(ProjectiveSpace(Rationals(),1));
-jmap:=map<X05 ->X1 | [Numerator(ProjectiveFunction(j)), Denominator(ProjectiveFunction(j))]>;
-jw5map:=w5*jmap;
-jw5fun:=FunctionField(X05)!(DefiningEquations(jw5map)[1]/DefiningEquations(jw5map)[2]);
-jdiff:=map<X05->X1 | [Numerator(ProjectiveFunction(j-jw5fun)),Denominator(ProjectiveFunction(j-jw5fun))]>;
-Z:=Pullback(jdiff,X1![0,1]);
-ptsZ:=Setseq(PointsOverSplittingField(Z));
-R<x,y>:=CoordinateRing(AmbientSpace(X05));
-emb:=map<Z->X05 | [x,y]>;
-for P in ptsZ do
-    assert Degree(ResidueClassField(Place(emb(P)))) eq 2;
 end for;
+
+//We find two pairs of solutions, but those correspond to quadratic j-invariants.
+assert #Set(foundpts1) eq 1 and #Set(foundpts2) eq 2;
+P:=foundpts1[1];
+jP:=Evaluate(j35,P);
+jP:=AbsoluteField(Parent(jP))!jP;
+Q5<rt5>:=QuadraticField(5);
+a:=282880*rt5 + 632000;
+assert Coefficients(MinimalPolynomial(jP)) eq Coefficients(MinimalPolynomial(a));
+
 
 
 

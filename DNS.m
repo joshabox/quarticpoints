@@ -187,6 +187,6 @@ assert TK eq T; // Sanity check.
 
 D := Pullback(TQ,F);  
 R<u,v,w>:=CoordinateRing(AmbientSpace(D));
-Xb5ns7:=D;
+X:=D;
 invTQ:=map< F -> D | DefiningEquations(Inverse(TQ))>;
-XlHtoXb5ns7:=XlHtoF*invTQ;
+XlHtoX:=XlHtoF*invTQ;

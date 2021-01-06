@@ -1,4 +1,4 @@
-//This is the accompanying Magma file of the paper ``Computing models for quotients of modular curves''
+//This is part of the accompanying Magma file of the paper ``Computing models for quotients of modular curves''
 //by Josha Box. It computes the j-map on a canonical model of X(b5,ns7).
 
 

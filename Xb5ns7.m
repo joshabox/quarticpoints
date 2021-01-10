@@ -1,5 +1,6 @@
 //This is part of the accompanying Magma file of the paper ``Computing models for quotients of modular curves''
-//by Josha Box. It computes the j-map on a canonical model of X(b5,ns7).
+//by Josha Box. It computes the map X(b5,ns7) --> X(ns7) on the canonical model.
+//At the end of the file, we have added the computation of the map X(b5,ns7) --> X_0(5).
 
 
 /* In this Magma file, we first verify that our model for X(b5,ns7) 
@@ -237,3 +238,32 @@ Fns7:=FunctionField(Xns7);
 jns7:=Evaluate(f,Fns7!(x/y))^3/Evaluate(g,Fns7!(x/y))^7;
 jX:=Pullback(Xb5ns7toXns7,jns7);
 print "We find the following map X(b5,ns7) to X(ns7): ", Xb5ns7toXns7;
+
+//Next, we would like to determine the map Xb5ns7 --> X05. The same procedure as for Xb5ns7 --> Xns7 is too time-expensive. 
+X05:=SmallModularCurve(5);
+j5:=jFunction(X05,5);
+
+//XtoX05:=MapToP1FromqExp(Xb5ns7,Bexp,X05,f5,21); //Works in theory, not in practice. 
+//So we shall resort to a trick. The curve X05 is P1, so the map Xb5ns7 --> X05 corresponds to a function g.
+
+F:=FunctionField(Xb5ns7);
+P<g>:=PolynomialRing(F);
+//We know that j5(g) = jX. This gives us a degree 6 equation in g, that we need to solve over F.
+pfj5:=ProjectiveFunction(j5);
+eqn:=Evaluate(Numerator(pfj5),[g,1])-jX*Evaluate(Denominator(pfj5),[g,1]);
+rts:=Roots(eqn); //This is it!
+assert #rts eq 1;
+g:=rts[1][1];
+assert Parent(g) eq F; //Indeed in the function field. 
+defeqns:=[Numerator(ProjectiveFunction(g)),Denominator(ProjectiveFunction(g))];
+
+//The two equations in defeqns define the map Xb5ns7 --> X05. We make it look a little nicer.
+for p in PrimesUpTo(1000) do
+    v:=Minimum([Valuation(c,p) : c in Coefficients(defeqns[1]) cat Coefficients(defeqns[2])]);
+    defeqns:=[p^(-v)*a : a in defeqns];
+end for;
+assert GCD([Integers()!c : c in Coefficients(defeqns[1]) cat Coefficients(defeqns[2])]) eq 1;
+
+Xb5ns7toX5:=map<Xb5ns7 -> X05 | defeqns>;
+assert Degree(Xb5ns7toX5) eq 21;
+assert Evaluate(Numerator(pfj5),[g,1])/Evaluate(Denominator(pfj5),[g,1]) eq jX; 

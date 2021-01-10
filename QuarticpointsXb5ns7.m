@@ -1,10 +1,9 @@
 load "ozmansiksek2.m";
 load "QuarticsieveXb5ns7.m";
-load "DNS.m";
+load "Xb5ns7.m";
 
-
-X:=Curve(Xb5ns7);
-XlHtoX:=XlHtoXb5ns7;
+X:=Codomain(Xb5ns7toX);
+CR<u,v,w>:=CoordinateRing(AmbientSpace(X));
 w5:=iso<X->X | [-u,-v,w],[-u,-v,w]>;
 
 
@@ -58,7 +57,7 @@ I0:=ideal<CoordinateRing(AmbientSpace(X)) | [
     v^2*w - 1/14*u*w^2 - 3/14*v*w^2 - 3/14*w^3]>;
 c0:=Divisor(X,I0); //The first degree 3 Galois orbit of cusps.
 cinf:=Pullback(w5,c0); //The second degree 3 Galois orbit of cusps.
-assert Place(invTQ(F(L)!c0F)) eq c0;
+//assert Place(invTQ(F(L)!c0F)) in [c0,cinf];
 Dtor:=c0-cinf;
 D1:=Divisor(X,I1)-bp;
 D2:=Divisor(X,I2)-bp;
@@ -77,6 +76,7 @@ end for;
 print "The number of non-pullbacks is"; #deg4npb;
 
 divs:=[D1,D2,Dtor];
+A:=AbelianGroup([0,0,7]);
 
 //We use p=19 to check that D2 is not a double in J_X(Q)
 for p in [19] do
@@ -91,39 +91,67 @@ for p in [19] do
     assert not h(A.2) in Image(m2);
 end for;
 
-A:=AbelianGroup([0,0,7]);
 B0,iA0:=sub<A | A.1,2*A.2>; //Since D2 is not a double, we end up in B0 x <A.3> after multiplying by I=2.
-W0s:={{A.3},{2*A.3},{3*A.3}}; //The option 0*A.3 we have excluded theoretically, and the possibilities k*A.3 and -k*A.3 are w5-symmetric, so it suffices to consider A.3, 2*A.3 and 3*A.3.
+W0s:={{A.3},{2*A.3},{3*A.3}}; //The option 0*A.3 we have excluded theoretically,
+//and the possibilities k*A.3 and -k*A.3 are w5-symmetric, so it suffices to consider A.3, 2*A.3 and 3*A.3.
 primes:=[11,13,17,23,53,29,71,43,37,31];
 I:=2;
 
 assert &and[MWSieve(X,w5,deg4npb,primes,A,divs,I,bp,B0,iA0,W0) : W0 in W0s];
 
-/*
-//We check here that the normalisation of the naive reduction of D is indeed *the* reduction of the abstract curve X(b5,ns7).
-//Note that canonImage is a smooth model for X(b5,ns7), so if that model has non-singular reduction at p then we have found *the* reduction.
-for p in [q : q in PrimesUpTo(102) | q gt 7] do
-    p;
-    Cp:=ChangeRing(canonImage,GF(p));
-    Dimension(Cp);
-    if Dimension(Cp) eq 1 then
-        IsSingular(Cp);
-        Dp:=ChangeRing(D,GF(p));
-        FCp:=AlgorithmicFunctionField(FunctionField(Cp));
-        FDp:=AlgorithmicFunctionField(FunctionField(Dp));
-        IsIsomorphic(FCp,FDp) eq true; //If this is true, then Dp and Cp are birational and J(Dp) = J(Cp)
-     end if;
+//Since we have used a singular model X, we should check that the mod p reductions
+//correspond to the special fibre of the minimal proper regular model over Zp. 
+//Note that the canonical model is a smooth model for X(b5,ns7),
+//so if that model has non-singular reduction at p and function fields correspond, we have found *the* reduction.
+for p in primes do
+    Xb5ns7p:=ChangeRing(Xb5ns7,GF(p));
+    assert Dimension(Xb5ns7p) eq 1;
+    assert not IsSingular(Xb5ns7p);
+    Xp:=ChangeRing(X,GF(p));
+    FXb5ns7p:=AlgorithmicFunctionField(FunctionField(Xb5ns7p));
+    FXp:=AlgorithmicFunctionField(FunctionField(Xp));
+    assert IsIsomorphic(FXb5ns7p,FXp); //If this is true, then Xb5ns7p and Xp are birational and J(Xb5ns7p) = J(Xp)
 end for;
-//This leaves the prime 13 to be checked, as for 13 we have Dimension(Cp) = 3.
-C:=canonImage;
-P5<[x]>:=AmbientSpace(C);
-h:=map<C -> P5 | [x[1],x[2]-x[1],x[3],x[4],x[5],x[5]]>; //a random isomorphism onto its image
-C1:=Image(h); 
-C113:=ChangeRing(C1,GF(13));
-assert Dimension(C113) eq 1;
-assert not IsSingular(C113);
-FC13:=AlgorithmicFunctionField(FunctionField(C113));
-FD13:=AlgorithmicFunctionField(FunctionField(ChangeRing(D,GF(13))));
-assert IsIsomorphic(FC13,FD13);
-*/
 
+
+//Next, we compute j-invariants of the found degree 4 points. 
+//For this, we first need to pull them back to the canonical model. 
+//This is problematic in practice because the rational map X(b5,ns7) --> X
+//is not defined everywhere. We can work around this.
+
+pls4npb:=[Decomposition(P)[1][1] : P in deg4npb | Decomposition(P)[1][2]*(#Decomposition(P)) eq 1];
+assert #pls4npb eq 8; 
+deg4pls:=[];
+for P in pls4npb do
+    Z:=Scheme(X,Ideal(1*P)); 
+    Zpb:=Pullback(Xb5ns7toX,Z); //This has ``extra'' irreducible components.
+    irs:=IrreducibleComponents(Zpb);
+    irs4:=[ir : ir in irs | Degree(ir) eq 4];
+    for ir in irs4 do
+        D:=Divisor(Xb5ns7,ir);
+        assert Degree(D) eq 4;
+        Q:=Decomposition(D)[1][1];
+        K:=ResidueClassField(Q);
+        if P eq Place(X(K)!Eltseq(Xb5ns7toX(RepresentativePoint(Q)))) then
+            Append(~deg4pls,Q);
+        end if;
+     end for;
+end for;
+assert #deg4pls eq 8;
+
+//We display the j-invariants
+for Q in deg4pls do
+    print "Information about this isolated quartic point on X(b5,ns7):";
+    j:=jns7(Xb5ns7toXns7(RepresentativePoint(Q)));
+    L:=ResidueClassField(Q);
+    K:=NumberField(MinimalPolynomial(j));
+    assert Degree(K) in [1,4]; //So it suffices to work in L.
+    LL,psi:=OptimizedRepresentation(L);
+    QQ:=X(LL)![psi(a) : a in Eltseq(Xb5ns7toX(RepresentativePoint(Q)))];
+    print "The field of the point is ", LL;
+    print "The coordinates of the point are ", QQ;
+    print "The j-invariant is ", psi(j);
+    Ej:=EllipticCurveFromjInvariant(psi(j));
+    print "CM? ",HasComplexMultiplication(Ej);
+end for;
+    

@@ -1,3 +1,7 @@
+//In this file, we compute the bitangents of X_0(105)/w35, and use this
+//to compute the mod 2 Galois representations explicitly.
+//This uses code of Ozman and Siksek for the latter.
+
 X:=ModularCurveQuotient(105,[35]);
 assert Genus(X) eq 3;
 assert #DefiningEquations(X) eq 1;
@@ -172,5 +176,7 @@ V3:=Eigenspace(mat3,F!1);
 assert [Dimension(V) : V in [V1,V2,V3]] eq [4,4,4];
 assert Dimension((V1 meet V2) meet V3) eq 2; 
 //This means that J(Q)[2] is a 2-dimensional F_2-vector space.
+
+print "Done";
 
 

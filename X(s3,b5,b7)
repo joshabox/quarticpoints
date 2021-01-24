@@ -1,4 +1,6 @@
-//This is the Magma code for X(s3,b5,b7) accompanying the paper Elliptic curves over quartic fields not containing sqrt(5) are modular, by Josha Box
+//This is the Magma code for X(s3,b5,b7)
+
+load "usefulfunctions.m";
 
 //First we check that only quadratic points Q on X_0(5) satisfy j(Q) = j(w5(Q)).
 X05:=SmallModularCurve(5);
@@ -18,98 +20,7 @@ for P in ptsZZ do
 end for;
 
 
-
-//There exists a Magma function ModularCurveQuotient for computing any quotient of a modular curve by Atkin--Lehner involutions.
-//However, we also need q-expansions corresponding to the coordinates. For hyperelliptic curves, these are not just given by cusp forms.
-HyperellipticModularQuotient:=function(N,wlist)
-C:=CuspForms(N);
-ws:=[AtkinLehnerOperator(C,a) : a in wlist];
-NN:=&meet[Nullspace(Matrix(w-1)) : w in ws];
-dimC:=Dimension(C);
-dimN:=Dimension(NN);
-den:=LCM(&cat[[Denominator(Eltseq(v)[i]) : i in [1..#Eltseq(v)]] : v in Basis(NN)]);
-B:=[&+[(Integers()!(den*Eltseq(Basis(NN)[i])[j]))*C.j : j in [1..dimC]] : i in [1..dimN]]; //basis for cusp forms fixed by ws
-prec:=500;
-L<q>:=LaurentSeriesRing(Rationals(),prec);
-x:=(L!qExpansion(B[#B-1],500))/(L!qExpansion(B[#B],500));
-y:=q*Derivative(x)/(L!qExpansion(B[#B],500));
-d:=2*dimN+2;
-R<[xx]>:=PolynomialRing(Rationals(),2);
-mons:=&cat[Setseq(MonomialsOfDegree(R,e)) : e in [0..d]];
-m:=#mons;
-k:=prec-100;
-Zm:=VectorSpace(Rationals(),#mons);
-Zk:=VectorSpace(Rationals(),k+101);
-h:=hom<Zm -> Zk | [[Coefficient(Evaluate(mons[i],[x,y]),j) : j in [-100..k]] : i in [1..m]]>;
-K:=Kernel(h);
-assert Dimension(K) eq 1; //The equation we construct from K holds provably as it is the only one.
-//This is not the most efficient way of finding the equation; since we know that such a hyperelliptic equation between x and y exists,
-//we can also remove a multiple of x^d from y^2 to make lowest coefficient in q-exp vanish, then continue with x^(d-1 etc. 
-eqnlist:=Eltseq(Basis(K)[1]);
-den:=LCM([Denominator(aa) : aa in eqnlist]);
-hypeqn:=&+[den*eqnlist[i]*mons[i] : i in [1..#mons]];
-ysqcoeff:=-MonomialCoefficient(hypeqn,xx[2]^2);
-hypeqn:=hypeqn/ysqcoeff;
-assert Evaluate(hypeqn,[0,xx[2]]) eq -xx[2]^2+MonomialCoefficient(hypeqn,1);
-RR<z>:=PolynomialRing(Rationals());
-hypeqn:=Evaluate(hypeqn,[z,0]);
-Y:=HyperellipticCurve(hypeqn);
-return Y,[x,y];
-end function;
-
-//Input N st X_0(N) is a hyperelliptic modular curve.
-//Currently needs X_0(n) to be P^1.
-//wlist is a sequence of integers dividing N maximally, corresponding to Atkin--Lehner operators on X_0(N)
-//In fact we require that the product of the integers in wlist equals N/n and is a square. 
-//We construct the map X_0(N)/ws --> X_0(N) given on q-expansions by q |--> q^l, where l^2=N/n.
-
-MapFromHyperellipticQuotient:=function(N,wlist,n)
-tf,ell:=IsSquare(Integers()!(N/n));
-assert tf;
-prec:=500;
-Y,qexps:=HyperellipticModularQuotient(N,wlist);
-x,y:=Explode(qexps);
-L<q>:=Parent(x);
-F<xx,yy>:=FunctionField(Y);
-Z:=SmallModularCurve(n);
-qE:=qExpansionsOfGenerators(n,L,prec)[1];
-qE3:=Evaluate(qE,q^(ell));
-
-//We search for polynomials p(x,y) and q(x,y) such that qE3 = p(x,y)/q(x,y), i.e. qE3*q(x,y) = p(x,y)
-tf:=false;
-d:=0;
-while tf eq false do
-    d:=d+1;
-    R:=PolynomialRing(Rationals(),2);
-    mons:=&cat[Setseq(MonomialsOfDegree(R,e)) : e in [0..d]];
-    m:=#mons;
-    k:=prec-100;
-    Zm:=VectorSpace(Rationals(),(2*#mons));
-    Zk:=VectorSpace(Rationals(),k+101);
-    h:=hom<Zm -> Zk | [[Coefficient(Evaluate(mons[i],[x,y])*qE3,j) : j in [-100..k]] : i in [1..m]] cat [[Coefficient(Evaluate(-mons[i],[x,y]),j) : j in [-100..k]] : i in [1..m]]>;
-    K:=Kernel(h);
-    for v in Basis(K) do
-        //We discount solutions where p(x,y)=0 or q(x,y)=0, as they just equations on Y
-        if not &and[Eltseq(v)[j] eq 0 : j in [1..#mons]] and not &and[Eltseq(v)[j+#mons] eq 0 : j in [1..#mons]] then
-            vseq:=Eltseq(v);
-            tf:=true;
-        end if; 
-    end for;
-end while;
-theeqn:=Evaluate(&+[vseq[i+#mons]*mons[i] : i in [1..#mons]],[xx,yy])/Evaluate(&+[vseq[i]*mons[i] : i in [1..#mons]],[xx,yy]);
-thefn:=ProjectiveFunction(theeqn);
-themap:=map<Y->Z | [Numerator(thefn),Denominator(thefn)]>;
-
-deg:=Degree(themap);
-dN:=Integers()!((1/2)*(N^3)*&*[Rationals() | 1-1/p^2 : p in PrimeDivisors(N)]);
-dn:=Integers()!((1/2)*(n^3)*&*[Rationals() | 1-1/p^2 : p in PrimeDivisors(n)]);
-deg2:=Integers()!(dN/(2*dn));
-//qE3 defines a function on Y of degree equal to the degree of Y->Z.
-//theeqn defines such a function of degree deg.
-//Then if unequal, the degree of the difference is at most deg+Degree(qE3).
-assert prec-100 ge deg2+deg; //This proves that the equation for the map holds.
-return themap;
-end function;
+//-------------X_0(35)---------------------------------------------------
 
 X035SMC:=SmallModularCurve(35);
 j35SMC:=jFunction(X035SMC,35);
@@ -119,23 +30,20 @@ X07:=SmallModularCurve(7);
 pr35to7SMC:=ProjectionMap(X035SMC,35,X07,7);
 pr35to7:=Inverse(m)*pr35to7SMC;
 
-ptsX035:= [ X035![1 , 1 , 0], X035![1 , -1 , 0], X035![0 , -1 , 1], X035![0 , 1 , 1]]; //The cusps of X_0(35).
+ptsX035:= [X035![1 , 1 , 0], X035![1 , -1 , 0], X035![0 , -1 , 1], X035![0 , 1 , 1]]; //The cusps of X_0(35).
 D1X035:=Place(ptsX035[2])-Place(ptsX035[1]);
 D2X035:=3*Place(ptsX035[3])-3*Place(ptsX035[1]); 
 infdivX035:=2*Place(ptsX035[1])+2*Place(ptsX035[2]);
 deg4X035:=[a*D1X035+b*D2X035+infdivX035 : a in [0..23], b in [0..1]];
 pr35to7fun:=DefiningEquations(pr35to7)[1]/DefiningEquations(pr35to7)[2];
 
-//We now verify that D1X035 and D2X035 generate the MW group as claimed.
+//We now verify that D1X035 and D2X035 generate the MW group.
 p:=3;
 X035p:=ChangeRing(X035,GF(p));
 assert IsSingular(X035p) eq false; // Now we know that J_X(Q)-->J_X(\F_p) is injective (rank 0).
-CG,phi,psi:=ClassGroup(X035p);
-ZZ:=FreeAbelianGroup(1);
 D1X035mod3:=Divisor(X035p![1,-1,0])-Divisor(X035p![1,1,0]);
 D2X035mod3:=3*Divisor(X035p![0,-1,1])-3*Divisor(X035p![1,1,0]);
-degr:=hom<CG->ZZ | [ Degree(phi(a))*ZZ.1 : a in OrderedGenerators(CG)]>;
-JX035F3:=Kernel(degr); // This is isomorphic to J_X(\F_p).
+JX035F3,phi,psi:=JacobianFp(X035p); // This is isomorphic to J_X(\F_p).
 assert IsIsomorphic(JX035F3,AbelianGroup([2,24]));
 assert sub<JX035F3 | [psi(D1X035mod3),psi(D2X035mod3)]> eq JX035F3;
 assert Order(psi(D1X035mod3)) eq 24;
@@ -145,6 +53,9 @@ assert Order(psi(D2X035mod3)) eq 2;
 cusps7:=&cat[CuspPlaces(X07,7,d) : d in Divisors(7)];
 assert cusps7 eq [Place(X07![0,1]),Place(X07![1,0])];
 assert {Place(pr35to7(P)) : P in ptsX035} eq Seqset(cusps7); //So ptsX is the set of cusps on X
+
+
+//-----------------X(s3,b7)---------------------------------------
 
 prs3b7to7:=MapFromHyperellipticQuotient(63,[9],7); //The map X_0(63)/w_9 --> X_0(7)
 Xs3b7:=Domain(prs3b7to7);
@@ -156,13 +67,11 @@ infdivXs3b7:=2*Place(ptsXs3b7[1])+2*Place(ptsXs3b7[2]);
 deg4Xs3b7:=[a*D1Xs3b7+b*D2Xs3b7+infdivXs3b7 : a in [0..1], b in [0..23]];
 prs3b7to7fun:=DefiningEquations(prs3b7to7)[1]/DefiningEquations(prs3b7to7)[2];
 
-//We check that D1Xs3b7 and D2Xs3b7 indeed generate the Mordell--Weil group
+//We check that D1Xs3b7 and D2Xs3b7 generate the Mordell--Weil group
 p:=5;
 Xs3b7p:=ChangeRing(Xs3b7,GF(p));
 assert IsSingular(Xs3b7p) eq false; // Now we know that J_X(Q)-->J_X(\F_p) is injective (rank 0).
-CC,phi,psi:=ClassGroup(Xs3b7p);
-degr:=hom<CC->ZZ | [ Degree(phi(a))*ZZ.1 : a in OrderedGenerators(CC)]>;
-JXs3b7F5:=Kernel(degr); // This is isomorphic to J_X(\F_p).
+JXs3b7F5,phi,psi:=JacobianFp(Xs3b7p); // This is isomorphic to J_X(\F_p).
 assert IsIsomorphic(JXs3b7F5,AbelianGroup([2,2,2,24]));
 D1Xs3b7mod5:=-9*(Divisor(Xs3b7p!Eltseq(ptsXs3b7[2]))-Divisor(Xs3b7p!Eltseq(ptsXs3b7[1])))+Divisor(Xs3b7p!Eltseq(ptsXs3b7[4]))-Divisor(Xs3b7p!Eltseq(ptsXs3b7[1]));
 D2Xs3b7mod5:=2*(Divisor(Xs3b7p!Eltseq(ptsXs3b7[2]))-Divisor(Xs3b7p!Eltseq(ptsXs3b7[1])))+Divisor(Xs3b7p!Eltseq(ptsXs3b7[4]))-Divisor(Xs3b7p!Eltseq(ptsXs3b7[1]));
@@ -172,9 +81,7 @@ assert Order(psi(D2Xs3b7mod5)) eq 24;
 p:=11;
 Xs3b7p:=ChangeRing(Xs3b7,GF(p));
 assert IsSingular(Xs3b7p) eq false; // Now we know that J_X(Q)-->J_X(\F_p) is injective (rank 0).
-CC,phi,psi:=ClassGroup(Xs3b7p);
-degr:=hom<CC->ZZ | [ Degree(phi(a))*ZZ.1 : a in OrderedGenerators(CC)]>;
-JXs3b7F11:=Kernel(degr); // This is isomorphic to J_X(\F_p).
+JXs3b7F11:=JacobianFp(Xs3b7p); // This is isomorphic to J_X(\F_p).
 assert IsIsomorphic(JXs3b7F11,AbelianGroup([4,264]));
 //JXs3b7F11 and JXs3b7F5 together show that J(Xs3b7)(Q) = Z/2Z D1Xs3b7 x Z/24Z D2Xs3b7 = 
 
@@ -188,9 +95,12 @@ assert &and[Order(g) in [1,2] : g in AutomorphismGroup(Xs3b7)]; //So Automorphis
 assert Genus(ModularCurveQuotient(63,[7,9])) eq 1; //So we must have phi_3*w_7 = hyperelliptic involution
 
 
+//-------------------Pairs of quartic points with the same image-------------------------
+
 //Input: dec=Decomposition(D), where D is a divisor of degree 4
 //f is the function Curve(D) -> P^1 as element in the function field of Curve(D)
-//Returns the coefficients of the degree 4 equation defining the divisor f_*D, with 
+//Returns the coefficients of the degree 4 equation defining the divisor f_*D
+
 PushFwdToP1:=function(dec,f)
 mp:=&*[MinimalPolynomial(Evaluate(f,dec[i][1]))^(dec[i][2]) : i in [1..#dec]];
 //Normally, mp would be the minimal polynomial.
@@ -387,6 +297,8 @@ assert &or[IsIsomorphic(AbsoluteField(ResidueClassField(Q)),L) : Q in plstoa]; /
 
 E:=EllipticCurveWithjInvariant(a);
 assert Norm(Conductor(E)) eq 2^(12)*5^2*11^4*19^2;
+
+print "Done";
 
 
 

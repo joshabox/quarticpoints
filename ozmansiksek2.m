@@ -1,4 +1,17 @@
 //This code was written by Ozman and Siksek.
+/*
+Functions defined in this file:
+
+- modeqns
+- searchDiv2
+- reduce
+
+- extenProb
+- findGenerators
+- reduceHom
+- reduceHoms
+- possibleJList
+*/
 //---------------------------------------------------------
 //
 // Function for writing down equations for X_0(N)
@@ -587,125 +600,5 @@ possibleJList:=function(X,divs,P0,Ksub,bas,prs);
         homs:=homsNew;
     end for;
     return homs;
-end function;
-
-//The below functions were added by Josha Box, based on the modEqns function of Ozman and Siksek
-ModCrvQuot:=function(N,wlist,remwlist)
-C:=CuspForms(N);
-ws:=[AtkinLehnerOperator(C,n) : n in wlist];
-remws:=[AtkinLehnerOperator(C,n) : n in remwlist];
-NN:=&meet[Nullspace(Matrix(w-1)) : w in ws];
-dim:=Dimension(NN);
-seqs:=[[Coordinates(NN,Basis(NN)[i]*Matrix(w)) : i in [1..dim]] : w in remws];
-BB:=[&+[(Integers()!(2*Eltseq(Basis(NN)[i])[j]))*C.j : j in [1..Dimension(C)]] : i in [1..dim]];
-prec:=500;
-L<q>:=LaurentSeriesRing(Rationals(),prec);
-R<[x]>:=PolynomialRing(Rationals(),dim);
-Bexp:=[L!qExpansion(BB[i],prec) : i in [1..dim]];
-eqns:=[R | ];
-	d:=1;
-	tf:=false;
-	while tf eq false do
-		d:=d+1;
-		mons:=MonomialsOfDegree(R,d);
-		monsq:=[Evaluate(mon,Bexp) : mon in mons];
-		V:=VectorSpace(Rationals(),#mons);
-		W:=VectorSpace(Rationals(),prec-10);
-		h:=hom<V->W | [W![Coefficient(monsq[i],j) : j in [1..(prec-10)]] : i in [1..#mons]]>;
-		K:=Kernel(h);
-		eqns:=eqns cat [ &+[Eltseq(V!k)[j]*mons[j] : j in [1..#mons] ] : k in Basis(K)  ];
-        I:=Radical(ideal<R | eqns>);
-		X:=Scheme(ProjectiveSpace(R),I);
-		if Dimension(X) eq 1 then
-			if IsSingular(X) eq false then
-				X:=Curve(ProjectiveSpace(R),eqns);
-				if Genus(X) eq dim then
-					tf:=true;
-				end if;
-			end if;
-		end if;
-	end while;
-	eqns:=GroebnerBasis(ideal<R | eqns>); // Simplifying the equations.
-	tf:=true;
-	repeat
-		t:=#eqns;
-		tf:=(eqns[t] in ideal<R | eqns[1..(t-1)]>);
-		if tf then 
-			Exclude(~eqns,eqns[t]);
-		end if;
-	until tf eq false;
-	t:=0;
-	repeat
-		t:=t+1;
-		tf:=(eqns[t] in ideal<R | Exclude(eqns,eqns[t])>);	
-		if tf then
-			Exclude(~eqns,eqns[t]);
-			t:=0;
-		end if;
-	until tf eq false and t eq #eqns;
-	X:=Curve(ProjectiveSpace(R),eqns); // Our model for X_0(N) discovered via the canonical embedding.
-	assert Genus(X) eq dim;
-	assert IsSingular(X) eq false;
-    indexGam:=N*&*[Rationals() | 1+1/p : p in PrimeDivisors(N)];	
-	indexGam:=Integers()!indexGam; // Index of Gamma_0(N) in SL_2(Z)
-	for eqn in eqns do
-		eqnScaled:=LCM([Denominator(c) : c in Coefficients(eqn)])*eqn;
-		wt:=2*Degree(eqn); // Weight of eqn as a cuspform.
-		hecke:=Ceiling(indexGam*wt/12);  // Hecke=Sturm bound.
-										// See Stein's book, Thm 9.18.
-		Bexp1:=[qExpansion(BB[i],hecke+10) : i in [1..dim]]; // q-expansions
-                        // of basis for S 
-                        // up to precision hecke+10.
-		assert Valuation(Evaluate(eqnScaled,Bexp1)) gt hecke+1;
-	end for; // We have now checked the correctness of the equations for X. 
-seqlist:=[[&+[seq[i][j]*x[j] : j in [1..dim]] : i in [1..dim]] : seq in seqs];
-wmaplist:=[iso<X->X | seq,seq> : seq in seqlist];
-return X,wmaplist;
-end function;
-
-
-MapFromQuotient:=function(N,ws,n)
-tf,m:=IsSquare(Integers()!(N/n));
-assert tf;
-X0N:=SmallModularCurve(N);
-X0n:=SmallModularCurve(n);
-ws:=[AtkinLehnerInvolution(X0N,N,w) : w in ws];
-Y,prY:=CurveQuotient(AutomorphismGroup(X0N,ws));
-prec:=200;
-L<q>:=LaurentSeriesRing(Rationals(),prec);
-qexps:=qExpansionsOfGenerators(N,L,200); //These are the q-expansions of the three cuspforms defining the model for X_0(45) computed by the SMC package.
-fn:=qExpansionsOfGenerators(n,L,200)[1]; //This is the q-expansion of the Hauptmodul function on X_0(n) with respect to which the SMC package computes maps to and from X_0(5). Starts as q^-1+... 
-fnm:=Evaluate(fn,q^m); //This is a function on Y.
-eqns:=DefiningEquations(prY);
-eqnsev:=[Evaluate(eqn,qexps) : eqn in eqns];
-fns:=[eqnsev[i]/eqnsev[#eqns] : i in [1..#eqns-1]]; //The q-exps of modular functions generating
-//the function field of Y. To compute the map we simply need to write fnd as
-//a rational function in the elements of fns. We can do this by linear algebra on q-exps.
-tf:=false;
-d:=0;
-while tf eq false do
-d:=d+1;
-R:=PolynomialRing(Rationals(),#eqns-1);
-mons:=&cat[Setseq(MonomialsOfDegree(R,e)) : e in [0..d]];
-k:=prec-100;
-Zk:=FreeAbelianGroup(k);
-Zm:=VectorSpace(Rationals(),(2*#mons));
-Zk:=VectorSpace(Rationals(),k+101);
-h:=hom<Zm -> Zk | [[Coefficient(Evaluate(mons[i],fns)*fnm,j) : j in [-100..k]] : i in [1..#mons]] cat [[Coefficient(Evaluate(-mons[i],fns),j) : j in [-100..k]] : i in [1..#mons]]>;
-K:=Kernel(h);
-for v in Basis(K) do
-if not &+[Eltseq(v)[j] : j in [1..#mons]] eq 0 and not &+[Eltseq(v)[j+#mons] : j in [1..#mons]] eq 0   then
-vseq:=Eltseq(v);
-tf:=true;
-end if; 
-end for;
-end while;
-F<[xx]>:=FunctionField(Y);
-theeqn:=Evaluate(&+[vseq[i+#mons]*mons[i] : i in [1..#mons]],xx)/Evaluate(&+[vseq[i]*mons[i] : i in [1..#mons]],xx);
-thefn:=ProjectiveFunction(theeqn);
-themap:=map<Y->X0n | [Numerator(thefn),Denominator(thefn)]>; //This is the one.
-projNn:=ProjectionMap(X0N,N,X0n,n,m); //Map X0N->X0n that is multiplication by m on complex upper half plane
-assert projNn eq prY*themap; //This proves that we have found the right map. No need to check if we computed q-expansions to suff high order.
-return themap;
 end function;
 

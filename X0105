@@ -1,10 +1,16 @@
-load "ozmansiksek2.m";
+load "usefulfunctions.m";
+
+//------------------X_0(105)-------------------------------------------
 
 X,wmaps:=ModCrvQuot(105,[5],[3,7]); //This is X_0(105)/w_5
 w3map:=wmaps[1];
 w7map:=wmaps[2];
 
 //We now compute X_0(105) as a double cover of X_0(105)/w5.
+//To this end, we compute a canonical model using a basis of cusp forms
+//which are all eigenforms for w_5.
+//The below code for computing this model is adapted from code of Ozman and Siksek.
+
 C:=CuspForms(105);
 assert Dimension(C) eq 13;
 w5:=AtkinLehnerOperator(C,5);
@@ -44,19 +50,31 @@ while tf eq false do
 			end if;
 	end if;
 end while;
+
 //X0105 is a canonical model for X_0(105)
 f:=9*x[9]^2 - 6*x[9]*x[10] + x[10]^2 + 6*x[10]*x[11] + 21*x[10]*x[12] - 
     12*x[10]*x[13] - 17*x[11]^2 + 19*x[11]*x[12] + 18*x[11]*x[13] + 7*x[12]^2 - 
     18*x[12]*x[13] + 27*x[13]^2;
 g:=3*x[1] - x[2] + x[4] + x[5] + x[6] + 7*x[7] - x[8];
-assert g^2-f in Ideal(X105); //So f is a square in X_0(105). As f is a polynomial in x[9],..,x[13], it is by construction in the image of the coord ring of X_0(105)/w_5
+assert g^2-f in Ideal(X105); //So f is a square in X_0(105).
 
+//As f is a polynomial in x[9],..,x[13], it is by construction in the image of the coord ring of X_0(105)/w_5
+//We check that f is not a square in the coordinate ring of X_0(105)/w_5.
+CRX<[xx]>:=CoordinateRing(AmbientSpace(X));
+ff:=Evaluate(f,[0,0,0,0,0,0,0,0] cat xx);
+assert not IsSquare(ff); 
+//This proves that X_0(105) --> X_0(105)/w_5 is the degree 2 cover defined by g^2=f. 
+
+//We construct this cover.
 CR<x1,x2,x3,x4,x5,z>:=PolynomialRing(Rationals(),6);
 fff:=Evaluate(f,[0,0,0,0,0,0,0,0,x1,x2,x3,x4,x5]);
 defsX:=[Evaluate(eqn,[x1,x2,x3,x4,x5]) : eqn in DefiningEquations(X)];
 XX105:=Curve(Scheme(ProjectiveSpace(CR),[z^2-fff] cat defsX));
 assert Genus(XX105) eq 13;
 pi:=map<XX105 -> X | [x1,x2,x3,x4,x5]>; //This is the map X_0(105) --> X_0(105)/w_5.
+
+
+//-----------------E_7, E_21 and C-------------------------------------------
 
 //We create the curves denoted in the paper by E_7, E_21 and C
 CC1,mm1:=CurveQuotient(AutomorphismGroup(X,[w7map]));
@@ -78,17 +96,17 @@ assert &and[tf1,tf2,tf3,tf4];
 assert IsIsomorphic(MW1,AbelianGroup([4]));
 assert IsIsomorphic(MW2,AbelianGroup([3]));
 
+
+//-------------------X_0(105)/w_5-----------------------------------------
+
 //Next, we compute the MW group of X_0(105)/w_5 
 //We first show that the cuspidal subgroup is Z/6Z x Z/24Z by embedding it into J(X)(F_11).
 assert #ptsX eq 4; //We only find the cusps.
 CQgens:=[Divisor(ptsX[i])-Divisor(ptsX[1]) : i in [2,3,4]]; //Generators for the rational cuspidal subgp
 X11:=ChangeRing(X,GF(11));
 assert not IsSingular(X11);
+J11,phi11,psi11:=JacobianFp(X11); //This is J_X(\F_11)
 Z3:=FreeAbelianGroup(3);
-C11,phi11,psi11:=ClassGroup(X11);
-Z:=FreeAbelianGroup(1);
-degr11:=hom<C11->Z | [Degree(phi11(a))*Z.1 : a in OrderedGenerators(C11)]>;
-J11:=Kernel(degr11); //This is J_X(\F_11)
 hC:=hom<Z3 -> J11 | [psi11(reduce(X,X11,DD)) : DD in CQgens]>; //The isomorphic image of the rational cusp subgp inside J11.
 AC:=AbelianGroup([6,24]);
 assert IsIsomorphic(Image(hC),AC);
@@ -104,9 +122,7 @@ assert IsIsomorphic(J11,A11);
 
 X13:=ChangeRing(X,GF(13));
 assert not IsSingular(X13);
-C13,phi13,psi13:=ClassGroup(X13);
-degr13:=hom<C13->Z | [Degree(phi13(a))*Z.1 : a in OrderedGenerators(C13)]>;
-J13:=Kernel(degr13);
+J13,phi13,psi13:=JacobianFp(X13);
 assert IsIsomorphic(J13,A13);
 
 assert GCD([600,3168]) eq 24;
@@ -144,12 +160,12 @@ assert IsPrincipal(2*twotors); //We have found a two-torsion element in J_X(\Q(\
 assert not IsPrincipal(3*Deff-3*dec21[2][1]); // Implies that the class [twotors] is not defined over the rationals.
 assert IsSquare(GF(17)!21) and IsSquare(GF(47)!21); //17 and 47 split in Q(\sqrt{21}).
 //This implies that J_X(\Q(\sqrt{21})) embeds in J_X(\F_17) and J_X(\F_47).
+
 Z4:=FreeAbelianGroup(4);
 X17:=ChangeRing(X,GF(17));
 assert not IsSingular(X17);
-C17,phi17,psi17:=ClassGroup(X17);
-degr17:=hom<C17->Z | [Degree(phi17(a))*Z.1 : a in OrderedGenerators(C17)]>;
-J17:=Kernel(degr17);
+J17,phi17,psi17:=JacobianFp(X17);
+
 //To reduce D mod (a prime above) 17, we reduce DD instead mod 17. This will reduce to a sum of 2 degree 2 places, and we pick one.
 //Note that it doesn't matter which one we pick, since the choice corresponds to a choice of prime above 17.
 DD17:=reduce(X,X17,DD);
@@ -179,6 +195,8 @@ end for;
 //It thus follows that J_X(Q) is equal to the rational cuspidal subgroup.
 
 
+//-----------------------------Quartic points on X_0(105)/w_5-----------------------------------------
+
 //Next, we determine the set of quartic points that do not map to a quadratic point on E_7 or E_21.
 //WARNING: This bit takes a few hours.
 
@@ -187,7 +205,6 @@ nonexcdivs:={};
 bp:=&+[Place(pt) : pt in ptsX];
 for a in [-2..3] do
  for b in [-11..12] do
-    [a,b];
     DD:=a*divs[1]+b*divs[2];
     RR,phi:=RiemannRochSpace(DD+bp);
     if Dimension(RR) gt 1 then
@@ -229,29 +246,13 @@ end for;
 
 
 
-//---------------------------------------------------------------
+//----------------Quadratic points on X_0(105)/w35, X_0(105)/<w7,w105> and X_0(105)/<w7,w21>---------------
+
 //We need to find the quadratic points on X_0(105)/w_35 (genus 3 non-hyp), X_0(105)/w_7,w_105 and X_0(105)/w_7,w21 (both genus 3 hyp).
 //For the first of these it is hard to determine the MW group. In a separate file we use the bitangents to show that its 2-torsion is Z/2 x Z/2.
 
 X35,wmaps:=ModCrvQuot(105,[35],[3,5]); //This is X_0(35), and wmaps=[w3,w5]
 Xstar,proj35star:=CurveQuotient(AutomorphismGroup(X35,wmaps));
-
-RatPtsSubgp:=function(XX,p) //Contains the cuspidal subgp if all cusps are rational (which is the case here)
-if not IsHyperelliptic(XX) then
-ptsXX:=PointSearch(XX,200);
-else ptsXX:=Setseq(Points(XX : Bound:=200));
-end if;
-Xp:=ChangeRing(XX,GF(p));
-assert not IsSingular(Xp);
-ZZ:=FreeAbelianGroup(#ptsXX-1);
-CCp,phip,psip:=ClassGroup(Xp);
-Z:=FreeAbelianGroup(1);
-degrp:=hom<CCp->Z | [Degree(phip(a))*Z.1 : a in OrderedGenerators(CCp)]>;
-Jp:=Kernel(degrp); //This is J_XX(\F_11)
-hC:=hom<ZZ -> Jp | [psip(Place(Xp![GF(p)!a : a in Eltseq(ptsXX[i])])-Place(Xp![GF(p)!a : a in Eltseq(ptsXX[1])])) : i in [2..#ptsXX]]>; 
-//The isomorphic image of the rational cusp subgp inside Jp.
-return Image(hC),hC;
-end function;
 
 //The below function computes a list of mod p MW groups
 MWgpmodp:=function(X,primes)
@@ -260,9 +261,7 @@ mwgps:=[];
 for p in primes do
     Xp:=ChangeRing(X,GF(p));
     assert not IsSingular(Xp);
-    Cp,phip,psip:=ClassGroup(Xp);
-    degrp:=hom<Cp -> Z | [Degree(phip(a))*Z.1 : a in OrderedGenerators(Cp)]>;
-    Jp:=Kernel(degrp); //The MW group J_X(Fp).
+    Jp,phip,psip:=JacobianFp(Xp); //The MW group J_X(Fp).
     Append(~mwgps,Jp);
 end for;
     return mwgps;
@@ -283,20 +282,6 @@ assert Order(hC(Zk.1+Zk.3)) eq 4;
 //This shows that CQ is generated by ptsX[2]+ptsX[4]-2*ptsX[1] and ptsX[4]-ptsX[1], with orders 8 and 4 respectively.
 ptsX:=PointSearch(X35,500);
 MWgp:=[a*(Divisor(ptsX[2])+Divisor(ptsX[4])-2*Divisor(ptsX[1]))+b*(Divisor(ptsX[4])-Divisor(ptsX[1])) : a in [0..7], b in [0..3]]; 
-
-//Computes all effective degree d=Degree(D0) divisors mapping into the classes in divlist under the Abel-Jacobi map defined by D |--> [D-D0]
-//Works only if all Riemann--Roch spaces are at most 1-dimensional
-AbelJacobiInverse:=function(divlist,D0)
-degddivs:=[];
-for D in divlist do
-    RR,phi:=RiemannRochSpace(D+D0);
-    assert Dimension(RR) le 1; //Sanity check. If false then X would be hyperelliptic.
-    if Dimension(RR) eq 1 then
-        Append(~degddivs,D+D0+Divisor(phi(RR.1)));
-    end if;
-end for;
-return degddivs;
-end function;
 
 //We determine the quadratic points on X_0(35)
 quaddivs:=AbelJacobiInverse(MWgp,2*Divisor(ptsX[1]));
@@ -446,3 +431,5 @@ quaddivs:=AbelJacobiInverse(alldivs,2*Place(PointSearch(X,200)[1]));
 quadpts:=Set([Decomposition(D)[1][1] : D in quaddivs | Degree(Decomposition(D)[1][1]) eq 2]);
 //The degree 2 places come from E_7(Q) or E_21(Q) and thus correspond to Q-curves.
 assert &and[&or[Degree(Place(pr(RepresentativePoint(P)))) eq 1 : pr in [prE7,prE21]] : P in deg2];
+
+print "Done";

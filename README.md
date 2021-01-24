@@ -18,3 +18,4 @@ The following files contain functions or data that are used in the files above:
 - QuarticsieveXb5ns7.m (the sieve for quartic points on Xb5ns7)
 - X1andX2sieve.m (the sieve for X1 and X2, including computations of maps and models)
 - cuspforms.m (q-expansions of cusp forms defining canonical models for X_1, X_2, X(b5,ns7) and X(b3,ns7)).
+- Xb5ns7.m (data on Xb5ns7, mostly copied from Magma file of "Models for quotients of modular curves" paper.

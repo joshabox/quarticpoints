@@ -112,23 +112,28 @@ end for;
 
 pls4npb:=[Decomposition(P)[1][1] : P in deg4npb | Decomposition(P)[1][2]*(#Decomposition(P)) eq 1];
 assert #pls4npb eq 8; 
-deg4pls:=[];
-for P in pls4npb do
+pls2npb:=[P: P in pls2 | not Pullback(w5,1*P) eq 1*P];
+assert #pls2npb eq 2;
+plsnpb:=pls4npb cat pls2npb;
+pls:=[];
+for P in plsnpb do
     Z:=Scheme(X,Ideal(1*P)); 
     Zpb:=Pullback(Xb5ns7toX,Z); //This has ``extra'' irreducible components.
     irs:=IrreducibleComponents(Zpb);
-    irs4:=[ir : ir in irs | Degree(ir) eq 4];
+    irs4:=[ir : ir in irs | Degree(ir) eq Degree(P)];
     for ir in irs4 do
         D:=Divisor(Xb5ns7,ir);
-        assert Degree(D) eq 4;
+        assert Degree(D) eq Degree(P);
         Q:=Decomposition(D)[1][1];
         K:=ResidueClassField(Q);
         if P eq Place(X(K)!Eltseq(Xb5ns7toX(RepresentativePoint(Q)))) then
-            Append(~deg4pls,Q);
+            Append(~pls,Q);
         end if;
      end for;
 end for;
-assert #deg4pls eq 8;
+deg4pls:=[D : D in pls | Degree(D) eq 4];
+deg2pls:=[D : D in pls | Degree(D) eq 2];
+assert #deg4pls eq 8 and #deg2pls eq 2;
 
 print "We list the isolated quartic points on X(b5,ns7).";
 //We display the j-invariants
@@ -144,6 +149,23 @@ for Q in deg4pls do
     print "The coordinates of the point are ", QQ;
     print "The j-invariant is ", psi(j);
     Ej:=EllipticCurveFromjInvariant(psi(j));
+    print "CM? ",HasComplexMultiplication(Ej);
+end for;
+
+print "We list the isolated quadratic points on X(b5,ns7).";
+//We display the j-invariants
+for Q in deg2pls do
+    print "Information about this isolated quadratic point on X(b5,ns7):";
+    j:=jns7(Xb5ns7toXns7(RepresentativePoint(Q)));
+    L:=ResidueClassField(Q);
+    Q5:=QuadraticField(5);
+    tf,phi:=IsIsomorphic(L,Q5);
+    assert Degree(K) in [1,2]; //So it suffices to work in L.
+    QQ:=X(Q5)![phi(a) : a in Eltseq(Xb5ns7toX(RepresentativePoint(Q)))];
+    print "The field of the point is ", Q5;
+    print "The coordinates of the point are ", QQ;
+    print "The j-invariant is ", phi(j);
+    Ej:=EllipticCurveFromjInvariant(phi(j));
     print "CM? ",HasComplexMultiplication(Ej);
 end for;
 
@@ -168,4 +190,4 @@ for pt in ptsC do
     print "CM? ", HasComplexMultiplication(Ej);
 end for;
 
-    
+

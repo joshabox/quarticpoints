@@ -92,7 +92,7 @@ V,phi:=SpaceOfDifferentialsFirstKind(X); //The space of all differentials.
 //The ith cusp form corresponds to the variable X(i+1).
 //We reorder the cusp forms according to our reordering of the variables X0,...X7.
 modforms:=cuspformsX1;
-modforms:=[modforms[1],modforms[2],modforms[3],modforms[4],modforms[7],modforms[8],modforms[5],modforms[6]];
+modforms:=modforms[[1,2,3,4,7,8,5,6]];
 modforms:=[f/q7p : f in modforms]; //We divide them all by q to get expansions for the corresponding differentials.
 
 //This function transforms a differential on X into its corresponding q-expansion.
@@ -117,6 +117,7 @@ omegafs:=[&+[coeffs[j][i]*phi(V.i) : i in [1..Dimension(V)]] : j in [1..#modform
 vandiffs:=[omegafs[i] : i in [2,3,5,6]]; //These are the differentials corresponding to rank 0 quotients: the vanishing diffs.
 
 //We compute expansions of differentials at the quadratic places up to 14=2g-2. Takes about 1 hour.
+//This only takes one hour because of my inefficient implementation; should be possible to improve this greatly. 
 exps:=<[ExpandDifferential(om,deg2pb[i],unifsX[i],14) : om in vandiffs] : i in [1..#ptsC]>;
 
 primes:=[13,23,43,53,67,83,71,89,97,79,181];

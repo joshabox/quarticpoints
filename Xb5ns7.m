@@ -122,8 +122,7 @@ print "The map from X(b5,ns7) to the planar model is linear: ",Expand(Xb5ns7toX)
 P<x>:=PolynomialRing(Rationals());
 K<a>:=NumberField(x^3+x^2-2*x-1);
 PP<z>:=PolynomialRing(K);
-F<t>:=PolynomialRing(K);
-F<t>:=FieldOfFractions(F);
+F<t>:=FieldOfFractions(PP);
 L<q>:=LaurentSeriesRing(F,200);
 g:=x^3+x^2-2*x-1;
 f:=(4*x^2+5*x+2)*(x^2+3*x+4)*(x^2+10*x+4)*(3*x+1); //Chen's model for the j-map on X(ns7)=P^1 is g^3/f^7. 

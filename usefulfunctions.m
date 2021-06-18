@@ -50,7 +50,7 @@ Jp,phip,psip:=JacobianFp(Xp);
 ZZ:=FreeAbelianGroup(#ptsXX-1);
 hC:=hom<ZZ -> Jp | [psip(Place(Xp![GF(p)!a : a in Eltseq(ptsXX[i])])-Place(Xp![GF(p)!b : b in Eltseq(ptsXX[1])])) : i in [2..#ptsXX]]>; 
 //The isomorphic image of the rational cusp subgp inside Jp.
-return Image(hC),hC;
+return Image(hC),hC,ptsXX;
 end function;
 
 //Computes all effective degree d=Degree(D0) divisors mapping into the classes

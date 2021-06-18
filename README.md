@@ -3,7 +3,7 @@ This is the Magma and Sage code accompanying the article "Elliptic curves over q
 To verify the claims made in the paper, the following files should be run:
 
 - X0105.m (this file does all checks for the chapter on X_0(105))
-- X0105w35bitangents.m (this file funs the bitangent check).
+- X0105w35bitangents.m (this file runs the bitangent check).
 - Xs3b5b7.m (this file does all checks for the chapter on X(s3,b5,b7))
 - QuarticptsXb5ns7.m (this file runs the sieve and Chabauty for quartic points on Xb5ns7)
 - X1.m (this file runs the sieves and Chabauty for X_1)

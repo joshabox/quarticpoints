@@ -16,18 +16,14 @@ assert Degree(eqn) eq 4; //X is indeed given as a plane quartic
 
 P<beta,gam>:=PolynomialRing(Rationals(),2);
 L:=FieldOfFractions(P);
-R<x>:=PolynomialRing(L,1);
+R<x>:=PolynomialRing(L);
 f:=R!Evaluate(eqn,[x,1,-beta*x-gam]);  
-f1:=f;
-f2:=Derivative(f,x);
-f3:=f-x*LeadingCoefficient(f)*f2/LeadingCoefficient(f2);
-f4:=f2-LeadingCoefficient(f2)*f3/LeadingCoefficient(f3);
-f5:=f3-x*LeadingCoefficient(f3)*f4/LeadingCoefficient(f4); //This polynomial has degree 2, and must be the GCD.
-f6:=f4-LeadingCoefficient(f4)*f5/LeadingCoefficient(f5); //To get f5=GCD(f,f2), need f6=0.
-cfs6:=Coefficients(f6);
-nums6:=[Numerator(c) : c in cfs6];
+f1 := f; f2 := Derivative(f); f3 := f1 mod f2; // f3 generically has degree 2
+// We want f3 to divide f1 and f2, so set coefficients of f1 mod f3 and f2 mod f3 equal to zero
+cfs1:=Coefficients(f1 mod f3); cfs2:=Coefficients(f2 mod f3);
+nums:=[Numerator(c) : c in cfs1 cat cfs2];
 A<u,v>:=AffineSpace(Rationals(),2);
-XX6:=Scheme(A,nums6);
+XX6:=Scheme(A,nums);
 assert Dimension(XX6) eq 0;
 QQ<t>:=PolynomialRing(Rationals());
 K5:=NumberField(t^2-5);
@@ -39,10 +35,11 @@ pts6:=RationalPoints(XX6,K);
 
 //We check which of the solutions actually correspond to bitangents.
 pts:=[];
-cfs,mons:=CoefficientsAndMonomials(f);
+cfs:=Coefficients(f); mons:=Monomials(f);
 for P in pts6 do
     PP<x>:=PolynomialRing(K);
-    ff:=&+[Evaluate(cfs[i],Eltseq(P))*Evaluate(mons[i],[x]) : i in [1..#mons]];  
+    mons:=[PP!m : m in mons];
+    ff:=&+[Evaluate(cfs[i],Eltseq(P))*Evaluate(mons[i],PP.1) : i in [1..#mons]];  
     ff:=ff/LeadingCoefficient(ff);
     if IsSquare(ff) then Append(~pts,P); 
     end if;
@@ -66,6 +63,8 @@ L:=SetToSequence(L);
 assert #L eq 28;
 
 //The code below is the code of Ozman and Siksek for computing the representation Gal(Qbar/Q) --> J[2] using the bitangents.
+//This takes a while to run for our curve.
+//Below their code, we also display the code written by the anonymous referee, which does the same computation much faster.
 
 LD:=[ &+[(d[2] div 2)*d[1] : d in Decomposition(Divisor(XK,l))] : l in L];
 w:=CanonicalDivisor(XK);
@@ -177,6 +176,47 @@ assert [Dimension(V) : V in [V1,V2,V3]] eq [4,4,4];
 assert Dimension((V1 meet V2) meet V3) eq 2; 
 //This means that J(Q)[2] is a 2-dimensional F_2-vector space.
 
-print "Done";
+//--------Code written by anonymous referee to compute the representation--------
+// work mod 79, which is totally split in K and use J(K)_tors >--> J(F)
+L:=[[K|1,-1,0]]; // first entry is Galois invariant
+for pt in pts do
+  beta,gam:=Explode(Eltseq(pt));
+  Append(~L, [beta,gam,1]);
+end for;
+assert #L eq 28;
 
+OK:=Integers(K);
+pr:=Decomposition(OK, 79)[1,1];
+F,KtoF:=ResidueClassField(pr);
+pi:=UniformizingElement(pr);
+XF:=ChangeRing(X,F);
+CF<xF,yF,zF>:=CoordinateRing(Ambient(XF));
+linesF:=[[KtoF(a/pi^n) : a in s] where n := Min([Valuation(a,pr) : a in s]) where s := Eltseq(l) : l in L];
+// the "half" contact divisors
+divsD:=[&+[ExactQuotient(d[2],2)*d[1]
+            : d in Decomposition(Divisor(XF, ideal<CF | l[1]*xF+l[2]*yF+l[3]*zF>))]
+          : l in linesF];
+// set up map from degree zero part of free abelian group on the bitangents
+// to JX(F)
+JXF,fromJXF,toJXF := ClassGroup(XF);
+A:=FreeAbelianGroup(27);
+d0:=divsD[1]; // base-point
+h:=hom<A -> JXF | [toJXF(d-d0) : d in divsD[2..28]]>;
+// the image should be the full 2-torsion subgroup
+JX2:=Image(h);
+assert Invariants(JX2) eq [2,2,2,2,2,2];
+// now set up Galois action on the 2-torsion
+// using the isomorphism with (Z/2Z)^6 provided by h
+AutK,AutKset,mAutK:=AutomorphismGroup(K);
+AutKgens:=[mAutK(g) : g in OrderedGenerators(AutK)];
+// find action on A
+inAutA:=[hom<A -> A | [A.(Position(L, [a(c) : c in l])-1) : l in L[2..28]]> : a in AutKgens];
+// and induced action on JX2
+inAutJ2:=[hom<JX2 -> JX2 | [g @@ h @ a @ h : g in OrderedGenerators(JX2)]> : a in inAutA];
+// determine invariants
+assert Invariants(&meet[Kernel(hom<JX2 -> JX2 | [a(g)-g : g in OrderedGenerators(JX2)]>) : a in inAutJ2])
+        eq [2,2];
+
+
+print "Done";
 

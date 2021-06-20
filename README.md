@@ -19,3 +19,7 @@ The following files contain functions or data that are used in the files above:
 - X1andX2sieve.m (the sieve for X1 and X2, including computations of maps and models)
 - cuspforms.m (q-expansions of cusp forms defining canonical models for X_1, X_2, X(b5,ns7) and X(b3,ns7)).
 - Xb5ns7.m (data on Xb5ns7, mostly copied from Magma file of "Models for quotients of modular curves" paper.
+
+Finally, the additional file 
+- fishermodels.m
+shows code written by Tom Fisher displaying "better" models for the three curves X_1, X_2 and X(b5,ns7), which have good reduction at 2 and at 3. 

@@ -160,7 +160,6 @@ for Q in deg2pls do
     L:=ResidueClassField(Q);
     Q5:=QuadraticField(5);
     tf,phi:=IsIsomorphic(L,Q5);
-    assert Degree(K) in [1,2]; //So it suffices to work in L.
     QQ:=X(Q5)![phi(a) : a in Eltseq(Xb5ns7toX(RepresentativePoint(Q)))];
     print "The field of the point is ", Q5;
     print "The coordinates of the point are ", QQ;
